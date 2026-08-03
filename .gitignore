@@ -41,3 +41,13 @@ models/**/*.bin
 outputs/tmp/
 1.24
 大数据综合课程实践课题-拔尖班-2026.docx
+
+# One-off project production utilities (kept local, not distributed)
+scripts/extract_nuscenes.py
+scripts/generate_data.py
+scripts/prepare_vla_training.py
+scripts/run_all.py
+src/selfevolve_drive/nuscenes_data.py
+src/selfevolve_drive/vla_training_data.py
+tools/build_report.py
+tools/build_report_latex.py

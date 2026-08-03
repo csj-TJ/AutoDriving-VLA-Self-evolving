@@ -105,7 +105,7 @@ class TrainingDataStore:
     def refresh(self) -> None:
         if not self.path.is_file():
             raise FileNotFoundError(
-                f"Training data not found: {self.path}. Run scripts/run_all.py first."
+                f"Training data not found: {self.path}. Confirm data/reflection_dataset.jsonl was pulled."
             )
         mtime_ns = self.path.stat().st_mtime_ns
         if mtime_ns == self._mtime_ns and self._rows:

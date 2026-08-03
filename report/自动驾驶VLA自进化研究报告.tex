@@ -204,13 +204,12 @@ Reward Model & 511 & 86.167 & 11.088 & 平滑但方差偏小，可能弱化极�
 Baseline 与 Reflection 系列在当前阈值下 Comfort 为 100；SFT 的不舒适率为 7.14\%、Comfort 为 93.174，说明对专家速度的快速回归可能引入加减速突变。这些分数只反映离散 waypoint 的纵向 jerk 与横向加速度。后续应加入急切入、非平稳前车、道路颠簸和闭环车辆动力学，并同时评价路线进度。
 
 \section{Demo 与工程实现}
-下载并解压 nuScenes mini 后，按顺序执行以下命令复现实验：
+主分支已包含抽取完成的 nuScenes 轻量数据与模型参数，协作者无需运行下载或数据生成工具。按顺序执行以下命令可重新训练、评估并启动 Demo：
 
 \begin{itemize}
-  \item \texttt{python\ scripts/\allowbreak{}extract\_nuscenes.py}
   \item \texttt{python\ scripts/\allowbreak{}train.py}
   \item \texttt{python\ scripts/\allowbreak{}evaluate.py}
-  \item \texttt{python\ scripts/\allowbreak{}prepare\_vla\_training.py}
+  \item \texttt{python\ scripts/\allowbreak{}run\_demo.py}
 \end{itemize}
 
 运行 \texttt{python\ scripts/\allowbreak{}run\_demo.py} 后访问 \path{http://127.0.0.1:8000}，Windows 也可双击根目录的 \texttt{启动Demo.bat}。新版网页由 Python 动态 API 驱动，不是离线静态页面：前端不保存固定场景、轨迹或分数，四类演示场景由后端从完整 5,112 条训练记录中动态匹配，也支持按 \path{scene_id} 和随机偏移加载。道路、前车、行人、弯道和天气效果由本次场景 JSON 驱动，CAM\_FRONT 来自对应 nuScenes sample；红色轨迹表示初始 Baseline，青色轨迹表示反思后策略。
@@ -281,7 +280,7 @@ Reflection+DPO/\allowbreak{}GRPO & DPO 轻量实现；GRPO 方案说明 & DPO �
 失败原因定位 & 五类 failure 标签与 evidence & 完成 \\
 泛化能力 & 1,008 条 scene 级隔离测试记录 & 完成（开放环） \\
 全套脚本和配置 & \path{scripts/}、\path{configs/default.json} & 完成 \\
-一键复现 & \path{scripts/run_all.py} & 完成 \\
+轻量复现 & \path{scripts/train.py}、\path{scripts/evaluate.py} & 完成 \\
 现场 Demo & \path{scripts/run_demo.py} + 网页 & 完成 \\
 真实场景可视化 & nuScenes CAM\_FRONT、双策略动态轨迹、运动前车/\allowbreak{}行人、反思时间线 & 完成（开放环） \\
 必要基座 & OpenDriveVLA-0.5B checkpoint 与官方代码已下载并通过结构审计 & 完成（冻结基座资产） \\

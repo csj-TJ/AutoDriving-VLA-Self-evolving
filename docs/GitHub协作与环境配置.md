@@ -106,10 +106,9 @@ git clone https://github.com/DriveVLA/OpenDriveVLA.git references/repositories/O
 
 完整推理/PEFT 推荐 Linux、Python 3.10、NVIDIA CUDA 和 PyTorch 2.1.2。官方项目还要求从其 `third_party/` 编译 MMCV 1.7.2 与 mmdetection3d 1.0.0rc6，并安装 DeepSpeed、Transformers、MMDet、MMSeg 等依赖。请优先遵循官方 `docs/1_INSTALL.md`，不要在 Windows Demo 环境中强行安装定制 CUDA 包。
 
-训练资产校验：
+完整 GPU 训练入口保留如下；它需要研究者自行准备与官方格式兼容的阶段数据：
 
 ```powershell
-python scripts/prepare_vla_training.py
 python scripts/train_opendrivevla_peft.py --stage sft --check-only
 python scripts/train_opendrivevla_peft.py --stage reflection_sft --check-only
 python scripts/train_opendrivevla_peft.py --stage dpo --check-only
@@ -119,18 +118,18 @@ Linux/CUDA 环境确认无误后，去掉 `--check-only` 执行对应阶段。
 
 ## 5. nuScenes 数据需求
 
-本课程轻量实验使用 nuScenes v1.0-mini。下载并解压到 `data/nuscenes/` 后运行：
+本课程轻量实验使用 nuScenes v1.0-mini。远端已经包含抽取后的 5,112 条
+`data/reflection_dataset.jsonl`，协作者无需下载或生成数据即可运行：
 
 ```powershell
-python scripts/extract_nuscenes.py
 python scripts/train.py
 python scripts/evaluate.py
-python scripts/prepare_vla_training.py
+python scripts/run_demo.py
 ```
 
-抽取器要求六相机关键帧齐全并保留 6 秒未来 ego pose；输出保留 `sample_token`、
-六相机 `sample_data_token`/图像引用、`annotation_token`、scene/log/location 和未来轨迹来源。
-原始数据不会提交；协作者仅运行 Demo 时无需下载，缺少原图时相机预览会自动隐藏。
+已交付记录保留 `sample_token`、六相机 `sample_data_token`/图像引用、
+`annotation_token`、scene/log/location 和 6 秒未来轨迹来源。一次性下载、抽取及数据生成代码
+不随主分支分发；原始数据也不会提交，缺少原图时相机预览会自动隐藏。
 
 完整 OpenDriveVLA 官方推理与评估需要：
 

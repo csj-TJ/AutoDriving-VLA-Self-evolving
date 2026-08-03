@@ -21,7 +21,6 @@ from selfevolve_drive.planner import Policy
 from selfevolve_drive.reflection import reflect
 from selfevolve_drive.simulator import generate_scenarios
 from selfevolve_drive.self_evolution import run_self_evolution
-from selfevolve_drive.vla_training_data import trajectory_text
 from selfevolve_drive.web_demo import DATA_STORE, Handler, compare
 from selfevolve_drive.demo_runtime import RuntimeEventLog
 
@@ -72,7 +71,6 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(len(trajectory.points), 6)
         self.assertEqual(trajectory.points[-1][:2], [6.0, 0.0])
         self.assertGreater(trajectory.target_speed, 0)
-        self.assertIn("<traj_start>", trajectory_text(trajectory))
 
     def test_cache_is_used_only_for_matching_policy(self):
         with tempfile.TemporaryDirectory() as tmp:
