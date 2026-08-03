@@ -220,11 +220,11 @@ Baseline 与 Reflection 系列在当前阈值下 Comfort 为 100；SFT 的不舒
   \item 选择“近距前车”，运行后观察运动前车与 Baseline 的时变间距风险。
   \item 播放双轨迹动画，对比反思后策略的提前减速和 Overall 变化。
   \item 在时间线中依次解释感知、初始规划、Critic 证据、纠正策略和重规划结果。
-  \item 切换“行人横穿”或“转弯场景”，验证同一闭环对不同失败根因的迁移。
+  \item 切换“行人运动”或“转弯场景”，验证同一闭环对不同失败根因的迁移。
   \item 切换 Reflection SFT 与 Reflection DPO，讨论偏好优化更安全但可能更保守的权衡。
 \end{itemize}
 
-页面可继续手工调整速度、距离、曲率、导航和天气；修改后使用新的场景 ID，避免误命中旧缓存。服务端使用当前策略实时规划，并以规则 Critic 65\%、训练后的 Reward Critic 25\%、完整训练集七近邻校准 10\% 计算三维分数。动画中的前车按场景速度行驶，行人在斑马线上连续横穿，反思后策略以运动学安全边界避免追尾，自车停车后保持最后有效道路航向。命令行以简洁摘要显示模型、评分和反思状态，详细结构化事件保留在 \path{/api/logs} 供调试但不展示在前端；\path{/api/data/status}、\path{/api/scenarios}、\path{/api/scenario} 提供可核验的数据连接。完整操作、字段含义和故障排查见 \texttt{docs/\allowbreak{}Demo使用说明.md}；基座选择与轻量化边界见 \texttt{docs/\allowbreak{}基座模型与轻量化说明.md}。
+页面可继续手工调整速度、距离、曲率、导航和天气；修改后使用新的场景 ID，避免误命中旧缓存。服务端使用当前策略实时规划，并以规则 Critic 65\%、训练后的 Reward Critic 25\%、完整训练集七近邻校准 10\% 计算三维分数。动画中的前车按场景速度行驶；行人轨迹来自当前 sample 的 nuScenes \path{sample_annotation} 后继链，按真实时间戳插值并保留 annotation token，手工场景只显示静态位置而不伪造运动。反思后策略以运动学安全边界避免追尾，自车停车后保持最后有效道路航向。命令行以简洁摘要显示模型、评分和反思状态，详细结构化事件保留在 \path{/api/logs} 供调试但不展示在前端；\path{/api/data/status}、\path{/api/scenarios}、\path{/api/scenario} 提供可核验的数据连接。完整操作、字段含义和故障排查见 \texttt{docs/\allowbreak{}Demo使用说明.md}；实际推理与训练环境见 \texttt{docs/\allowbreak{}真实推理与自进化训练环境.md}。
 
 主要目录为：\path{configs/} 保存实验配置；\path{src/selfevolve_drive/} 保存 nuScenes 适配器、schema、Planner、Critic、Reflection、训练与评估；\path{scripts/} 保存独立抽取/\allowbreak{}训练/\allowbreak{}评估/\allowbreak{}demo 入口；\path{data/} 保存 5,112 条可追溯 JSONL；\path{models/} 保存 SFT、Reflection SFT、DPO 与 Reward Model 参数；\path{outputs/} 保存实际运行指标；\path{tests/} 保存回归测试；\path{references/} 保存资料清单；\path{report/} 保存报告。
 

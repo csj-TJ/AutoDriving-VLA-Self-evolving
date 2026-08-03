@@ -225,13 +225,18 @@ function drawRoad() {
   ctx.lineWidth = 7;
   ctx.beginPath(); ctx.moveTo(stopLeft.x, stopLeft.y); ctx.lineTo(stopRight.x, stopRight.y); ctx.stroke();
 
-  if (visual.pedestrian.visible) {
-    for (let delta = -2; delta <= 2; delta += 1) {
-      const a = worldPoint([visual.pedestrian.x + delta * .8, visual.pedestrian.y + .5]);
-      const b = worldPoint([visual.pedestrian.x + delta * .8, visual.pedestrian.y + visual.road_width_m + .5]);
-      ctx.strokeStyle = '#e8edf1aa'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-    }
+  const pedestrianTrack = Array.isArray(visual.pedestrian?.track)
+    ? visual.pedestrian.track
+    : [];
+
+  if (visual.pedestrian?.visible && pedestrianTrack.length > 1) {
+    ctx.strokeStyle = '#ffcf6d88'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    pedestrianTrack.forEach((point, index) => {
+      const pixel = worldPoint([point.x, point.y]);
+      if (index === 0) ctx.moveTo(pixel.x, pixel.y); else ctx.lineTo(pixel.x, pixel.y);
+    });
+    ctx.stroke(); ctx.setLineDash([]);
   }
 
   const signal = worldPoint([visual.traffic_light.x, visual.traffic_light.y]);
@@ -252,11 +257,15 @@ function drawRoad() {
     ctx.fillStyle = '#ffd69a'; ctx.font = '12px sans-serif';
     ctx.fillText(`前车 ${visual.lead_vehicle.speed.toFixed(1)}m/s`, lead.x + 18, lead.y);
   }
-  if (visual.pedestrian.visible) {
-    const crossProgress = Math.min(1, animationTime / 5.5);
-    const smoothProgress = crossProgress * crossProgress * (3 - 2 * crossProgress);
-    const pedestrianY = visual.pedestrian.y + (visual.road_width_m + 1.1) * smoothProgress;
-    drawPedestrian(worldPoint([visual.pedestrian.x, pedestrianY]), animationTime);
+  if (visual.pedestrian?.visible && pedestrianTrack.length > 0) {
+    const pedestrianPoint = interpolateTrack(pedestrianTrack, animationTime);
+    drawPedestrian(worldPoint([pedestrianPoint.x, pedestrianPoint.y]),
+      animationTime * Math.max(.2, visual.pedestrian.mean_speed_mps || 0));
+    ctx.fillStyle = '#ffe29b'; ctx.font = '12px sans-serif';
+    const sourceLabel = visual.pedestrian.data_source === 'nuscenes_sample_annotation' ? 'nuScenes 标注' : '静态场景值';
+    const pedestrianPixel = worldPoint([pedestrianPoint.x, pedestrianPoint.y]);
+    ctx.fillText(`行人 ${visual.pedestrian.mean_speed_mps.toFixed(1)}m/s · ${sourceLabel}`,
+      pedestrianPixel.x + 12, pedestrianPixel.y - 10);
   }
 
   ctx.fillStyle = '#dcebf7'; ctx.font = '600 13px sans-serif';
@@ -269,6 +278,23 @@ function drawRoad() {
     fog.addColorStop(0, '#dce8ee77'); fog.addColorStop(1, '#b7c5cc12');
     ctx.fillStyle = fog; ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
+}
+
+function interpolateTrack(points, time) {
+  if (!points.length) return { x: 0, y: 0 };
+  if (time <= points[0].t) return points[0];
+  for (let index = 1; index < points.length; index += 1) {
+    if (time <= points[index].t) {
+      const previous = points[index - 1];
+      const next = points[index];
+      const ratio = (time - previous.t) / Math.max(.001, next.t - previous.t);
+      return {
+        x: previous.x + (next.x - previous.x) * ratio,
+        y: previous.y + (next.y - previous.y) * ratio,
+      };
+    }
+  }
+  return points[points.length - 1];
 }
 
 function drawRain() {

@@ -111,7 +111,8 @@ class CoreTests(unittest.TestCase):
         page = (ROOT / "demo" / "index.html").read_text(encoding="utf-8")
         self.assertIn("trajectoryHeading", frontend)
         self.assertIn("visual.lead_vehicle.speed * animationTime", frontend)
-        self.assertIn("smoothProgress", frontend)
+        self.assertIn("interpolateTrack", frontend)
+        self.assertNotIn("smoothProgress", frontend)
         self.assertNotIn("pollLogs", frontend)
         self.assertNotIn("后端实时日志", page)
 
@@ -158,6 +159,10 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(len(source["sample_token"]), 32)
         self.assertEqual(len(source["image_refs"]), 6)
         self.assertTrue(source["annotation_tokens"])
+        pedestrian = source["participants"]["pedestrian"]
+        self.assertIsNotNone(pedestrian)
+        self.assertEqual(pedestrian["provenance"], "nuScenes sample_annotation next-token chain")
+        self.assertGreaterEqual(len(pedestrian["points"]), 1)
         self.assertEqual(len(row["expert_trajectory"]["points"]), 12)
         self.assertTrue(all((ROOT / "data" / "nuscenes" / path).is_file()
                             for path in source["image_refs"].values()))
@@ -175,6 +180,20 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(result["results"]["reflection_sft"]["critic"]["critic_type"], "live_rule_reward_data")
         self.assertEqual(result["provenance"]["data"]["records"], DATA_STORE.status()["records"])
         self.assertEqual(len(result["results"]["reflection_sft"]["score_provenance"]["neighbors"]), 7)
+        self.assertEqual(result["visualization"]["pedestrian"]["data_source"], "scenario_static")
+        self.assertEqual(len(result["visualization"]["pedestrian"]["track"]), 1)
+
+    def test_pedestrian_animation_uses_nuscenes_annotation_track(self):
+        preset = next(item for item in DATA_STORE.presets() if item["key"] == "ped")
+        payload = {
+            **preset["scenario"], "policy": "reflection_sft", "runtime": "lite",
+            "scenario_source": "training_dataset", "source_sample_id": preset["sample_id"],
+        }
+        pedestrian = compare(payload)["visualization"]["pedestrian"]
+        self.assertEqual(pedestrian["data_source"], "nuscenes_sample_annotation")
+        self.assertGreater(len(pedestrian["track"]), 1)
+        self.assertGreater(pedestrian["displacement_m"], 1)
+        self.assertEqual(len(pedestrian["annotation_token"]), 32)
 
     def test_dynamic_demo_http_endpoints(self):
         server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)

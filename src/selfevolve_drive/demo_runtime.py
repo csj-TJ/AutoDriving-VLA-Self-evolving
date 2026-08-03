@@ -188,7 +188,9 @@ class TrainingDataStore:
         self.refresh()
         definitions = (
             ("intersection", "真实路口", lambda r: "intersection" in r.get("source", {}).get("scene_description", "").lower()),
-            ("ped", "行人横穿", lambda r: r["scenario"].get("pedestrian_distance", 100) < 18),
+            ("ped", "行人运动", lambda r: (
+                (r.get("source", {}).get("participants", {}).get("pedestrian") or {}).get("displacement_m", 0) > 1
+            )),
             ("lead", "近距前车", lambda r: r["scenario"].get("lead_distance", 100) < 12),
             ("curve", "转弯场景", lambda r: r["scenario"].get("route_command") in {"left", "right"}),
         )

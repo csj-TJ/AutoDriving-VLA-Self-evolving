@@ -41,13 +41,48 @@ def _scenario(obj: dict) -> Scenario:
     )
 
 
-def _visualization(s: Scenario) -> dict:
+def _source_record(obj: dict) -> dict | None:
+    if obj.get("scenario_source") == "user_control_modified":
+        return None
+    record_id = obj.get("source_sample_id") or obj.get("scene_id")
+    if not record_id:
+        return None
+    try:
+        return DATA_STORE.get(str(record_id))
+    except KeyError:
+        return None
+
+
+def _visualization(s: Scenario, source_record: dict | None = None) -> dict:
     def center_y(x: float) -> float:
         return s.road_curvature * (max(0.0, x) ** 1.45) * .12
 
     horizon = max(70.0, s.stopline_distance + 15.0, min(s.lead_distance + 15.0, 100.0))
     centerline = [[round(x, 3), round(center_y(x), 3)] for x in
                   [i * horizon / 35 for i in range(36)]]
+    pedestrian_track = (
+        source_record.get("source", {}).get("participants", {}).get("pedestrian")
+        if source_record else None
+    )
+    if pedestrian_track and pedestrian_track.get("points"):
+        pedestrian = {
+            "visible": True, "track": pedestrian_track["points"],
+            "data_source": "nuscenes_sample_annotation",
+            "annotation_token": pedestrian_track.get("annotation_token"),
+            "instance_token": pedestrian_track.get("instance_token"),
+            "duration_s": pedestrian_track.get("duration_s", 0.0),
+            "displacement_m": pedestrian_track.get("displacement_m", 0.0),
+            "mean_speed_mps": pedestrian_track.get("mean_speed_mps", 0.0),
+        }
+    else:
+        visible = s.pedestrian_distance <= horizon
+        pedestrian = {
+            "visible": visible,
+            "track": ([{"t": 0.0, "x": s.pedestrian_distance,
+                        "y": center_y(s.pedestrian_distance)}] if visible else []),
+            "data_source": "scenario_static" if visible else "none",
+            "duration_s": 0.0, "displacement_m": 0.0, "mean_speed_mps": 0.0,
+        }
     payload = {
         "world_horizon_m": horizon,
         "road_width_m": 10.5,
@@ -56,8 +91,7 @@ def _visualization(s: Scenario) -> dict:
         "stop_line": {"x": s.stopline_distance, "center_y": center_y(s.stopline_distance)},
         "lead_vehicle": {"x": s.lead_distance, "y": center_y(s.lead_distance),
                          "speed": s.lead_speed, "visible": s.lead_distance <= horizon},
-        "pedestrian": {"x": s.pedestrian_distance, "y": center_y(s.pedestrian_distance) - 5.8,
-                       "visible": s.pedestrian_distance <= horizon},
+        "pedestrian": pedestrian,
         "traffic_light": {"state": s.traffic_light, "x": s.stopline_distance,
                           "y": center_y(s.stopline_distance) + 6.5},
         "route_command": s.route_command,
@@ -98,11 +132,12 @@ def _run_policy(s: Scenario, name: str, runtime: str, request_id: str) -> tuple[
 
 def infer(obj: dict) -> dict:
     s = _scenario(obj)
+    source_record = _source_record(obj)
     request_id = str(obj.get("request_id") or uuid.uuid4().hex[:12])
     policy = obj.get("policy", "reflection_sft")
     result, timing = _run_policy(s, policy, obj.get("runtime", "auto"), request_id)
     payload = {
-        "request_id": request_id, "scenario": s.to_dict(), "visualization": _visualization(s),
+        "request_id": request_id, "scenario": s.to_dict(), "visualization": _visualization(s, source_record),
         **result, "provenance": {"scenario_source": obj.get("scenario_source", "user_control"),
                                 "source_sample_id": obj.get("source_sample_id"),
                                 "data": DATA_STORE.status(), "timing": timing},
@@ -112,6 +147,7 @@ def infer(obj: dict) -> dict:
 
 def compare(obj: dict) -> dict:
     s = _scenario(obj)
+    source_record = _source_record(obj)
     request_id = str(obj.get("request_id") or uuid.uuid4().hex[:12])
     runtime = obj.get("runtime", "auto")
     EVENT_LOG.emit(
@@ -135,7 +171,7 @@ def compare(obj: dict) -> dict:
         {"phase": "重规划", "detail": f"{selected} 目标速度 {results[selected]['trajectory']['target_speed']:.1f} m/s，综合分变化 {improved_score-base_score:+.1f}"},
     ]
     payload = {
-        "request_id": request_id, "scenario": s.to_dict(), "visualization": _visualization(s),
+        "request_id": request_id, "scenario": s.to_dict(), "visualization": _visualization(s, source_record),
         "results": results, "selected_policy": selected,
         "events": events, "failure_count": len(failures),
         "delta": {"overall": round(improved_score - base_score, 3), "target_speed": round(results[selected]["trajectory"]["target_speed"] - results["baseline"]["trajectory"]["target_speed"], 3)},
@@ -183,7 +219,7 @@ class Handler(BaseHTTPRequestHandler):
             EVENT_LOG.emit("data_select", "从训练数据加载场景", scene_id=scene_id,
                            sample_id=row.get("sample_id"), split=row.get("split"))
             self._json({"sample_id": row.get("sample_id"), "scene_id": scene_id,
-                        "scenario": scenario.to_dict(), "visualization": _visualization(scenario),
+                        "scenario": scenario.to_dict(), "visualization": _visualization(scenario, row),
                         "stored_critic": row.get("critic"), "split": row.get("split"),
                         "source": row.get("source"),
                         "camera_image_url": f"/api/nuscenes/image?scene_id={scene_id}&camera=CAM_FRONT"

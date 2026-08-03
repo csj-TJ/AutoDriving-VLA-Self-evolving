@@ -23,6 +23,7 @@
   "all_image_refs_verified": true,
   "sample_token_traceability": true,
   "expert_trajectory": "12 future ego poses at approximately 2 Hz",
+  "pedestrian_tracks": 169,
   "source_archive": "data/nuscenes/v1.0-mini.tgz",
   "source_archive_bytes": 4167696325,
   "source_archive_sha256": "943037abbb3b26b3070dc76504a43eb440503b00baf9ac2f1538d9c03fc9298f"

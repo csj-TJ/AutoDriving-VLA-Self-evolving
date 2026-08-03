@@ -17,7 +17,7 @@ python scripts/run_demo.py
 轻量训练的 5,112 条 `data/reflection_dataset.jsonl`，因此无原始图像也能运行轨迹、评分
 和反思 Demo；下载原始 nuScenes mini 后，页面还会显示对应 CAM_FRONT 实景图像。
 
-Windows 也可直接双击 `启动Demo.bat`。新版驾驶台从完整训练数据索引动态选择红灯、行人、慢速前车和恶劣弯道场景，同屏比较 Baseline 与反思后轨迹，并展示模型调用、数据近邻、Critic 评分和结构化 Reflection。前车与行人按时间运动，自车停车后保持道路航向；后端命令行只输出简洁的人类可读运行摘要。详细操作见 `docs/Demo使用说明.md`。
+Windows 也可直接双击 `启动Demo.bat`。新版驾驶台从完整训练数据索引动态选择真实路口、行人运动、近距前车和转弯场景，同屏比较 Baseline 与反思后轨迹，并展示模型调用、数据近邻、Critic 评分和结构化 Reflection。前车按场景速度运动，行人按 nuScenes `sample_annotation` 时间轨迹运动，自车停车后保持道路航向；后端命令行只输出简洁的人类可读运行摘要。详细操作见 `docs/Demo使用说明.md`。
 
 ## 基座模型与轻量化结论
 
@@ -38,6 +38,7 @@ Windows 也可直接双击 `启动Demo.bat`。新版驾驶台从完整训练数�
   不随主分支分发。参考论文与源码的
   本地情况见 `references/REFERENCE_MANIFEST.md`。
 - GitHub 协作、基座依赖、数据集目录和 GPU 环境说明：见 `docs/GitHub协作与环境配置.md`。
+- 实际推理与自进化训练的 WSL2/Linux/CUDA 安装步骤：见 `docs/真实推理与自进化训练环境.md`。
 
 ## 使用现有数据复现实验
 
