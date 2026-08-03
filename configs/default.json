@@ -1,0 +1,28 @@
+{
+  "seed": 42,
+  "num_samples": 5000,
+  "train_ratio": 0.8,
+  "trajectory_horizon": 12,
+  "dt": 0.5,
+  "quality_threshold": 0.58,
+  "critic_weights": {"safety": 0.45, "rule": 0.35, "comfort": 0.20},
+  "ridge_lambda": 0.1,
+  "dpo_beta": 0.15,
+  "base_model": {
+    "recommended": "OpenDriveVLA-0.5B",
+    "required_for_full_experiment": true,
+    "model_url": "https://huggingface.co/OpenDriveVLA/OpenDriveVLA-0.5B",
+    "model_path": "references/models/OpenDriveVLA-0.5B",
+    "code_path": "references/models/VLA-code/OpenDriveVLA-code",
+    "demo_runtime": "auto: OpenDriveVLA cache then LiteVLA CPU fallback",
+    "checkpoint_installed": true,
+    "weights_loaded": false,
+    "finetuning": "LoRA Reflection SFT + DPO"
+  },
+  "llm": {
+    "mode": "offline",
+    "base_url": "",
+    "model": "",
+    "api_key_env": "OPENAI_API_KEY"
+  }
+}

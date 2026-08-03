@@ -1,0 +1,79 @@
+{
+  "dataset": {
+    "total": 5000,
+    "test": 1000,
+    "accepted": 2730
+  },
+  "policies": [
+    {
+      "policy": "baseline",
+      "samples": 1000,
+      "collision_risk_rate": 0.089,
+      "traffic_violation_rate": 0.454,
+      "pedestrian_yield_failure_rate": 0.059,
+      "uncomfortable_rate": 0.0,
+      "safety_score": 94.909,
+      "rule_score": 81.335,
+      "comfort_score": 100.0,
+      "overall_score": 91.176,
+      "target_speed_mae": 5.163
+    },
+    {
+      "policy": "sft",
+      "samples": 1000,
+      "collision_risk_rate": 0.032,
+      "traffic_violation_rate": 0.075,
+      "pedestrian_yield_failure_rate": 0.015,
+      "uncomfortable_rate": 0.0,
+      "safety_score": 98.339,
+      "rule_score": 95.985,
+      "comfort_score": 100.0,
+      "overall_score": 97.847,
+      "target_speed_mae": 1.512
+    },
+    {
+      "policy": "reflection_sft",
+      "samples": 1000,
+      "collision_risk_rate": 0.033,
+      "traffic_violation_rate": 0.072,
+      "pedestrian_yield_failure_rate": 0.014,
+      "uncomfortable_rate": 0.0,
+      "safety_score": 98.394,
+      "rule_score": 96.123,
+      "comfort_score": 100.0,
+      "overall_score": 97.92,
+      "target_speed_mae": 1.561
+    },
+    {
+      "policy": "reflection_dpo",
+      "samples": 1000,
+      "collision_risk_rate": 0.03,
+      "traffic_violation_rate": 0.051,
+      "pedestrian_yield_failure_rate": 0.003,
+      "uncomfortable_rate": 0.0,
+      "safety_score": 99.045,
+      "rule_score": 97.343,
+      "comfort_score": 100.0,
+      "overall_score": 98.64,
+      "target_speed_mae": 1.98
+    }
+  ],
+  "critic_summary": {
+    "rule": {
+      "count": 4000,
+      "mean_overall": 92.132,
+      "std": 11.632
+    },
+    "llm_offline_proxy": {
+      "count": 500,
+      "mean_overall": 91.959,
+      "std": 11.986
+    },
+    "reward_model": {
+      "count": 500,
+      "mean_overall": 91.213,
+      "std": 8.374
+    }
+  },
+  "scope_note": "Lightweight synthetic open-loop proxy metrics; not CARLA closed-loop claims."
+}

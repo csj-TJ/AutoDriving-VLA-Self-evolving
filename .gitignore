@@ -1,0 +1,35 @@
+# Local QA, research notes and caches
+.qa/
+.research/
+__pycache__/
+*.py[cod]
+.venv/
+.idea/
+.vscode/
+
+# Secrets
+token
+.env
+.env.*
+*.pem
+*.key
+
+# OpenDriveVLA checkpoint and third-party source checkout
+references/models/OpenDriveVLA-0.5B/*
+!references/models/OpenDriveVLA-0.5B/README_DOWNLOAD.md
+references/models/VLA-code/
+references/papers/*.pdf
+
+# Generated datasets and model outputs
+data/*.jsonl
+data/opendrivevla_training/*.jsonl
+outputs/*.jsonl
+outputs/opendrivevla/
+models/opendrivevla_*_lora/
+models/**/*.safetensors
+models/**/*.bin
+
+# Temporary artifacts and local-only source document
+outputs/tmp/
+1.24
+大数据综合课程实践课题-拔尖班-2026.docx

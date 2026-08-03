@@ -1,0 +1,47 @@
+[
+  {
+    "round": 1,
+    "policy": "evolution_round_0",
+    "samples": 1813,
+    "revised_samples": 326,
+    "mean_overall": 96.245,
+    "failure_events": 387,
+    "failure_breakdown": {
+      "red_light_risk": 122,
+      "pedestrian_yield_failure": 105,
+      "unsafe_following": 80,
+      "speeding": 80
+    },
+    "memory_size": 326
+  },
+  {
+    "round": 2,
+    "policy": "evolution_round_1",
+    "samples": 1813,
+    "revised_samples": 257,
+    "mean_overall": 97.167,
+    "failure_events": 312,
+    "failure_breakdown": {
+      "pedestrian_yield_failure": 70,
+      "red_light_risk": 88,
+      "unsafe_following": 78,
+      "speeding": 76
+    },
+    "memory_size": 583
+  },
+  {
+    "round": 3,
+    "policy": "evolution_round_2",
+    "samples": 1813,
+    "revised_samples": 252,
+    "mean_overall": 97.238,
+    "failure_events": 302,
+    "failure_breakdown": {
+      "pedestrian_yield_failure": 69,
+      "red_light_risk": 84,
+      "unsafe_following": 75,
+      "speeding": 74
+    },
+    "memory_size": 835
+  }
+]

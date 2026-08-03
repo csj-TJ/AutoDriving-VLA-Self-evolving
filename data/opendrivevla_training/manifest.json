@@ -1,0 +1,15 @@
+{
+  "base_model": "OpenDriveVLA-0.5B",
+  "initialization": "E:\\自驾VLA自进化项目\\references\\models\\OpenDriveVLA-0.5B",
+  "source_scope": "lightweight synthetic proxy; replace image_refs with nuScenes assets for full VLA training",
+  "counts": {
+    "sft": 1813,
+    "reflection_sft": 1813,
+    "dpo": 1112
+  },
+  "files": {
+    "sft": "E:\\自驾VLA自进化项目\\data\\opendrivevla_training\\sft.jsonl",
+    "reflection_sft": "E:\\自驾VLA自进化项目\\data\\opendrivevla_training\\reflection_sft.jsonl",
+    "dpo": "E:\\自驾VLA自进化项目\\data\\opendrivevla_training\\dpo.jsonl"
+  }
+}
