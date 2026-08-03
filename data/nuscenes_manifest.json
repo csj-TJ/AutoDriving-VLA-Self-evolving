@@ -1,0 +1,29 @@
+{
+  "dataset": "nuScenes",
+  "version": "v1.0-mini",
+  "dataroot": "data/nuscenes",
+  "raw_keyframes": 404,
+  "keyframes_with_6s_future_and_six_cameras": 284,
+  "rollout_variants_per_keyframe": 18,
+  "records": 5112,
+  "splits": {
+    "train": 3060,
+    "val": 1044,
+    "test": 1008
+  },
+  "accepted": 2927,
+  "camera_channels": [
+    "CAM_FRONT",
+    "CAM_FRONT_RIGHT",
+    "CAM_BACK_RIGHT",
+    "CAM_BACK",
+    "CAM_BACK_LEFT",
+    "CAM_FRONT_LEFT"
+  ],
+  "all_image_refs_verified": true,
+  "sample_token_traceability": true,
+  "expert_trajectory": "12 future ego poses at approximately 2 Hz",
+  "source_archive": "data/nuscenes/v1.0-mini.tgz",
+  "source_archive_bytes": 4167696325,
+  "source_archive_sha256": "943037abbb3b26b3070dc76504a43eb440503b00baf9ac2f1538d9c03fc9298f"
+}

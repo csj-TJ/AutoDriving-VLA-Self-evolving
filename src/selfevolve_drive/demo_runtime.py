@@ -45,7 +45,33 @@ class RuntimeEventLog:
                 "details": details,
             }
             self._events.append(event)
-            print("[demo] " + json.dumps(event, ensure_ascii=False), flush=True)
+            labels = {
+                "request": "请求", "request_complete": "完成", "model_call": "模型",
+                "model_load": "模型", "data_load": "数据", "data_warning": "数据",
+                "critic_call": "评分", "reflection": "反思", "error": "错误",
+            }
+            preferred = {
+                "request": ("scene_id", "requested_runtime"),
+                "request_complete": ("scene_id", "selected_policy", "score_delta"),
+                "model_call": ("policy", "actual_runtime", "latency_ms"),
+                "model_load": ("path", "latency_ms"),
+                "data_load": ("path", "records", "latency_ms"),
+                "data_warning": ("line",),
+                "critic_call": ("policy", "overall", "latency_ms"),
+                "reflection": ("policy", "verdict", "failures"),
+            }.get(category, tuple(details)[:3])
+            shown = []
+            for key in preferred:
+                if key not in details:
+                    continue
+                value = details[key]
+                if isinstance(value, list):
+                    value = ",".join(map(str, value)) or "无"
+                suffix = "ms" if key == "latency_ms" else ""
+                shown.append(f"{key}={value}{suffix}")
+            clock = event["time"].split("T", 1)[-1][:8]
+            tail = " · " + " | ".join(shown) if shown else ""
+            print(f"[{clock}] {labels.get(category, category)}：{message}{tail}", flush=True)
             return event
 
     def read(self, after: int = 0, limit: int = 200) -> dict[str, Any]:
@@ -153,24 +179,27 @@ class TrainingDataStore:
             "sample_id": row.get("sample_id"), "scene_id": row["scenario"]["scene_id"],
             "split": row.get("split"), "accepted": row.get("accepted"),
             "failures": row.get("critic", {}).get("failures", []), "scenario": row["scenario"],
+            "camera_image_url": f"/api/nuscenes/image?scene_id={row['scenario']['scene_id']}&camera=CAM_FRONT"
+            if row.get("source", {}).get("dataset") == "nuScenes" else None,
         } for row in rows[offset:offset + limit]]
         return {"items": items, "offset": offset, "limit": limit, "total": len(rows)}
 
     def presets(self) -> list[dict[str, Any]]:
         self.refresh()
         definitions = (
-            ("red", "红灯路口", lambda r: "red_light_risk" in r.get("critic", {}).get("failures", [])),
+            ("intersection", "真实路口", lambda r: "intersection" in r.get("source", {}).get("scene_description", "").lower()),
             ("ped", "行人横穿", lambda r: r["scenario"].get("pedestrian_distance", 100) < 18),
             ("lead", "近距前车", lambda r: r["scenario"].get("lead_distance", 100) < 12),
-            ("curve", "恶劣弯道", lambda r: abs(r["scenario"].get("road_curvature", 0)) > .09
-             and r["scenario"].get("weather") in {"rain", "fog", "night"}),
+            ("curve", "转弯场景", lambda r: r["scenario"].get("route_command") in {"left", "right"}),
         )
         result = []
         for key, label, predicate in definitions:
             row = next((item for item in self._rows if predicate(item)), None)
             if row:
                 result.append({"key": key, "label": label, "sample_id": row.get("sample_id"),
-                               "scene_id": row["scenario"]["scene_id"], "scenario": row["scenario"]})
+                               "scene_id": row["scenario"]["scene_id"], "scenario": row["scenario"],
+                               "camera_image_url": f"/api/nuscenes/image?scene_id={row['scenario']['scene_id']}&camera=CAM_FRONT"
+                               if row.get("source", {}).get("dataset") == "nuScenes" else None})
         return result
 
     def nearest(self, scenario: Scenario, k: int = 7) -> dict[str, Any]:

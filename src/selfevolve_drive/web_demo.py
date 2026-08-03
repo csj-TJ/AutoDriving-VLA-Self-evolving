@@ -184,7 +184,26 @@ class Handler(BaseHTTPRequestHandler):
                            sample_id=row.get("sample_id"), split=row.get("split"))
             self._json({"sample_id": row.get("sample_id"), "scene_id": scene_id,
                         "scenario": scenario.to_dict(), "visualization": _visualization(scenario),
-                        "stored_critic": row.get("critic"), "split": row.get("split")})
+                        "stored_critic": row.get("critic"), "split": row.get("split"),
+                        "source": row.get("source"),
+                        "camera_image_url": f"/api/nuscenes/image?scene_id={scene_id}&camera=CAM_FRONT"
+                        if row.get("source", {}).get("dataset") == "nuScenes" else None})
+            return
+        if path == "/api/nuscenes/image":
+            scene_id = query.get("scene_id", [""])[0]
+            camera = query.get("camera", ["CAM_FRONT"])[0]
+            row = DATA_STORE.get(scene_id)
+            relative = row.get("source", {}).get("image_refs", {}).get(camera)
+            if not relative:
+                self.send_error(404); return
+            media_root = (ROOT / "data" / "nuscenes").resolve()
+            image_path = (media_root / relative).resolve()
+            if media_root not in image_path.parents or not image_path.is_file():
+                self.send_error(404); return
+            data = image_path.read_bytes()
+            self.send_response(200); self.send_header("Content-Type", "image/jpeg")
+            self.send_header("Cache-Control", "public, max-age=3600")
+            self.send_header("Content-Length", str(len(data))); self.end_headers(); self.wfile.write(data)
             return
         if path == "/api/meta":
             self._json({"model": create_base_model(ROOT).metadata(), "audit": audit_opendrivevla(ROOT),

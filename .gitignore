@@ -27,6 +27,7 @@ references/models/VLA-code/
 references/papers/*.pdf
 
 # Generated datasets and model outputs
+data/nuscenes/
 data/*.jsonl
 !data/reflection_dataset.jsonl
 data/opendrivevla_training/*.jsonl

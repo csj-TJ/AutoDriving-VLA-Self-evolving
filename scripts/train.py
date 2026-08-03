@@ -11,7 +11,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from selfevolve_drive.pipeline import load_config, read_jsonl
 from selfevolve_drive.schema import Scenario
 from selfevolve_drive.self_evolution import run_self_evolution
-from selfevolve_drive.training import fit_dpo, fit_reflection_sft, fit_sft
+from selfevolve_drive.training import fit_dpo, fit_reflection_sft, fit_sft_records
 
 
 def main() -> None:
@@ -24,8 +24,7 @@ def main() -> None:
     args = p.parse_args()
     cfg, records = load_config(args.config), read_jsonl(args.data)
     train = [r for r in records if r["split"] == "train" and r["accepted"]]
-    scenes = [Scenario(**r["scenario"]) for r in train]
-    sft = fit_sft(scenes, ridge=cfg["ridge_lambda"])
+    sft = fit_sft_records(train, ridge=cfg["ridge_lambda"])
     reflection = fit_reflection_sft(train, ridge=cfg["ridge_lambda"])
     policies = [sft, reflection]
     if not args.skip_dpo:

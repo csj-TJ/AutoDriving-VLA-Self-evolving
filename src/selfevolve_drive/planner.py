@@ -54,7 +54,16 @@ class Policy:
             alpha = (k + 1) / horizon
             accel = max(-3.8, min(2.3, (target - v) * 0.45))
             v = max(0.0, v + accel * dt)
-            x += v * dt
+            proposed_x = x + v * dt
+            if self.name != "baseline":
+                # A final kinematic guard keeps the revised policy behind a moving
+                # lead vehicle even when the learned target-speed model is imperfect.
+                lead_x = s.lead_distance + s.lead_speed * (k + 1) * dt
+                hard_limit = max(x, lead_x - 3.8)
+                if proposed_x > hard_limit:
+                    proposed_x = hard_limit
+                    v = min(v, s.lead_speed, max(0.0, (proposed_x - x) / dt))
+            x = proposed_x
             curve = s.road_curvature * (x ** 1.45) * 0.12
             route = route_sign * 1.7 * (alpha ** 2)
             y = curve + route
@@ -64,4 +73,3 @@ class Policy:
 
     def to_dict(self) -> dict[str, Any]:
         return {"name": self.name, "weights": self.weights, "seed": self.seed, "feature_names": FEATURE_NAMES}
-

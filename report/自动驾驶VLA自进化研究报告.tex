@@ -46,9 +46,9 @@
 \onehalfspacing
 \section*{摘要}
 \addcontentsline{toc}{section}{摘要}
-现有端到端自动驾驶视觉语言动作模型通常依赖固定数据进行一次性训练，部署后的失败轨迹难以自动转化为新知识。本文提出并实现一个面向课程验证的 Driving Reflection 自进化框架，以本地完整下载并核验的 OpenDriveVLA-0.5B checkpoint 作为冻结基座资产和标准轨迹接口，以“场景输入—轨迹规划—Critic 评价—结构化反思—经验记忆—再训练”为闭环。系统将 Critic 分解为 Safety、Rule、Comfort 三个维度，提供规则评价器、可连接 OpenAI-compatible 服务的 LLM Critic，以及由评价数据拟合的 Reward Model Critic；通过质量过滤构造 5,000 条统一 JSONL 反思样本，并实现 Baseline、SFT、失败样本加权 Reflection SFT、三轮失败回放自进化与轻量 DPO。项目同时提供面向 OpenDriveVLA 的 LoRA SFT、Reflection SFT 和 DPO 数据导出、配置及训练入口，使 Windows 无训练 Demo 与 Linux/\allowbreak{}CUDA 完整训练保持同一数据语义。
+现有端到端自动驾驶视觉语言动作模型通常依赖固定数据进行一次性训练，部署后的失败轨迹难以自动转化为新知识。本文提出并实现一个面向课程验证的 Driving Reflection 自进化框架，以本地完整下载并核验的 OpenDriveVLA-0.5B checkpoint 作为冻结基座资产和标准轨迹接口，以“场景输入—轨迹规划—Critic 评价—结构化反思—经验记忆—再训练”为闭环。系统从 nuScenes v1.0-mini 的 404 个关键帧中抽取 284 个具有完整六相机输入与 6 秒未来 ego pose 的关键帧，通过 18 组基座候选 rollout 形成 5,112 条可追溯反思记录；每条记录保留 sample\_token、六相机 sample\_data/\allowbreak{}image 引用、annotation token、scene/\allowbreak{}log/\allowbreak{}location 和专家未来轨迹。Critic 分解为 Safety、Rule、Comfort 三个维度，并实现规则、LLM 接口/\allowbreak{}离线可重复评价和 Reward Model 三种方式。系统完成 Baseline、SFT、失败样本加权 Reflection SFT、三轮失败回放和轻量 DPO，并导出与 OpenDriveVLA LoRA 训练接口兼容的数据。
 
-在固定随机种子生成的 1,000 条未见合成场景上，Baseline 的碰撞风险代理率、交通违章代理率、行人礼让失败率分别为 8.9\%、45.4\% 和 5.9\%；Reflection SFT 将三项指标降至 3.3\%、7.2\% 和 1.4\%，整体 Critic 得分由 91.176 提升至 97.920；Reflection DPO 进一步达到 3.0\%、5.1\% 和 0.3\%。这些结果验证了“失败定位—纠正知识—再学习”闭环在研究原型上的有效性。本文同时明确：上述结果属于 CPU 可复现的开放环合成代理实验，不等同于 nuScenes 或 CARLA 的真实闭环性能。
+在按 scene 隔离的 1,008 条 nuScenes 测试 rollout 上，Baseline 的碰撞风险率、交通违章率和行人礼让失败率分别为 21.83\%、3.97\% 和 35.71\%，Overall 为 87.874；SFT 将三项降低至 0、0 和 8.93\%，Overall 提升至 96.425。Reflection SFT 在当前规则阈值下三项均为 0、Overall 为 100，但专家目标速度 MAE 为 5.541 m/\allowbreak{}s，表明策略存在明显保守化；Reflection DPO 的 Overall 为 99.558、行人礼让失败率为 1.79\%。这些结果验证了失败定位与再学习闭环，同时也说明单纯追求安全 Critic 得分会牺牲效率。上述结果属于 nuScenes 衍生的轻量开放环实验，不等同于 CARLA 或真实道路闭环性能。
 
 关键词：自动驾驶；视觉语言动作模型；自我反思；Critic；监督微调；直接偏好优化；自进化
 
@@ -108,10 +108,10 @@ OpenDriveVLA & \path{drivevla/}、\path{llava/}、\path{projects/}、\path{scrip
 
 \section{方法}
 \subsection{总体闭环}
-系统工作流为：场景生成或数据集适配器输出统一 Scenario；Planner 生成未来 12 个 waypoint；三维 Critic 评价轨迹并定位失败；Reflection Builder 把失败与证据映射为纠正动作；Quality Filter 过滤低置信或无证据样本；训练器执行 SFT、Reflection SFT 或 DPO；评估器在独立未见场景上重新测量风险。所有中间产物使用 JSON/\allowbreak{}JSONL，因此可把轻量 Planner 替换为 OpenDriveVLA，而无需改写 Critic、数据过滤和分析模块。
+系统工作流为：nuScenes 适配器读取 scene、sample、sample\_data、ego\_pose、sample\_annotation、instance 和 category 表并输出统一 Scenario；Planner 对同一真实关键帧生成候选未来 12 个 waypoint；三维 Critic 评价轨迹并定位失败；Reflection Builder 把失败与证据映射为纠正动作；Quality Filter 过滤低置信或无证据样本；训练器执行 SFT、Reflection SFT 或 DPO；评估器在 scene 隔离测试集上重新测量风险。所有中间产物使用 JSON/\allowbreak{}JSONL，因此可把 Windows LiteVLA Planner 替换为 OpenDriveVLA GPU 推理，而无需改写 Critic、数据过滤和分析模块。
 
 \subsection{场景与轨迹表示}
-Scenario 包含自车速度、限速、前车距离/\allowbreak{}速度、信号灯、停止线距离、行人距离、道路曲率、导航指令、天气与未见场景标志。Trajectory 包含 12×0.5s 的 \texttt{[纵向位置,\ 横向位置,\ 速度]} waypoint、目标速度、策略名和简短规划依据。训练/\allowbreak{}验证场景使用 clear/\allowbreak{}rain/\allowbreak{}fog，未见测试额外加入 night，并扩大曲率和红灯比例以形成分布偏移。
+Scenario 包含由 ego pose、标注框和未来姿态计算的自车速度、前车距离/\allowbreak{}速度、行人距离、道路曲率和导航方向，以及从 scene 描述提取的天气。Trajectory 包含 12×0.5s 的 \texttt{[纵向位置,\ 横向位置,\ 速度]} waypoint、目标速度、策略名和规划依据。nuScenes mini 表不提供可直接对应的逐帧交通灯相位、停止线距离与道路限速，因此轻量实验对这三项采用明确记录的中性先验；它们不作为真实 nuScenes 标注宣称。训练、验证和测试按 scene\_token 划分，防止同一场景帧泄漏。
 
 \subsection{三维 Critic}
 规则 Critic 的安全维度检查时间到碰撞 TTC、行人礼让；规则维度检查超速和红灯停车；舒适性维度检查纵向 jerk 与横向加速度代理量。综合得分为：
@@ -126,7 +126,7 @@ Scenario 包含自车速度、限速、前车距离/\allowbreak{}速度、信号
 \subsection{Self-Evolution 训练}
 Baseline 是带噪声且可能漏检信号灯、行人或前车的轻量规划器。SFT 对专家目标速度执行带 L2 正则的最小二乘拟合。Reflection SFT 对 Critic 定位的失败样本按失败数量提高权重，使长尾错误在训练中获得更强梯度。DPO 轻量实验从 \texttt{专家纠正轨迹（chosen）} 与 \texttt{原失败轨迹（rejected）} 构造偏好对，在 Reflection SFT 权重上执行稳定的小步偏好更新。
 
-为体现持续进化而非单次重训，系统进一步实现三轮失败回放。每轮用当前策略重新生成 1,813 条训练轨迹，Critic 定位失败，Reflection 生成纠正知识并写入经验记忆池，再依据失败严重度和综合得分动态提高样本权重。三轮轻量实验中，平均 Overall 从 96.245 提升到 97.238；需要修订的轨迹由 326 条降至 252 条，失败事件由 387 个降至 302 个，累计形成 835 条可追溯反思记忆。该结果属于冻结基座接口上的轻量代理实验，用于验证自进化机制的方向和工程闭环。
+为体现持续进化而非单次重训，系统进一步实现三轮失败回放。每轮使用 1,881 条通过质量过滤的训练记录，Critic 定位失败，Reflection 生成纠正知识并写入经验记忆池，再依据失败严重度和综合得分动态提高样本权重。三轮轻量实验中，平均 Overall 从 89.726 提升到 91.213；需要修订的轨迹由 656 条降至 558 条，失败事件由 808 个降至 692 个，累计形成 1,790 条可追溯反思记忆。该结果属于冻结基座接口上的 nuScenes 开放环轻量实验，用于验证自进化机制和工程闭环。
 
 完整模型训练代码位于 \path{scripts/train_opendrivevla_peft.py}。其从本地 OpenDriveVLA-0.5B 初始化，冻结视觉塔和原始参数，仅在 Q/\allowbreak{}K/\allowbreak{}V/\allowbreak{}O 注意力投影注入 LoRA；SFT 与 Reflection SFT 使用交叉熵目标，DPO 使用带冻结参考策略 log-ratio 的偏好损失。Windows 可通过 \path{--check-only} 核验模型、代码、数据和配置，Linux/\allowbreak{}CUDA 环境取消该参数即可执行训练。官方仓库尚未发布训练脚本，因此本项目补充了独立 PEFT 入口。
 
@@ -137,15 +137,15 @@ Baseline 是带噪声且可能漏检信号灯、行人或前车的轻量规划�
 
 \section{实验设计}
 \subsection{数据规模与划分}
-固定 \path{seed=42} 生成 5,000 条样本。其中训练/\allowbreak{}验证来自常见天气，最后 1,000 条为未见测试场景并包含夜间条件。流水线按轮换方式使用 80\% Rule Critic、10\% LLM 离线代理、10\% Reward Model；经过质量阈值过滤保留 2,730 条，最终 Reflection 训练使用 1,813 条训练划分高质量样本。
+实验使用 nuScenes v1.0-mini：原始表包含 10 个 scene、404 个 sample keyframe、31,206 条 sample\_data 和 18,538 条 sample\_annotation。筛选六相机齐全且具有后续 12 个 ego pose 的 284 个关键帧，并对每个关键帧运行 18 组确定性候选策略，共得到 5,112 条 Trajectory→Critic→Reflection 记录。按 scene\_token 划分后，训练/\allowbreak{}验证/\allowbreak{}测试分别为 3,060/\allowbreak{}1,044/\allowbreak{}1,008 条；质量过滤保留 2,927 条，其中训练集 1,881 条。数据清单同时记录原始压缩包大小 4,167,696,325 字节和 SHA-256 \path{943037ab...fc9298f}。
 
-为与完整 OpenDriveVLA 训练对齐，数据导出器进一步生成 1,813 条普通 SFT 样本、1,813 条 Reflection SFT 样本和 1,112 对 DPO chosen/\allowbreak{}rejected 偏好数据。每条记录包含基座名称、场景 ID、来源类型、结构化 prompt、轨迹 token 和预留的多相机 \path{image_refs} 字段；轻量实验中图像引用为空，接入 nuScenes 时保持 schema 不变并替换为真实图像和 UniAD 特征引用。
+面向 OpenDriveVLA 的数据导出器生成 1,881 条普通 SFT、1,881 条 Reflection SFT 和 1,464 对 DPO chosen/\allowbreak{}rejected 偏好数据。每条记录包含 OpenDriveVLA-0.5B 基座名、sample\_token、scene\_id、结构化 prompt、轨迹 token、六相机图像引用、annotation token 和完整 source 对象，可回溯到原始 nuScenes 帧及专家未来 ego pose。
 
 \subsection{指标}
-主要指标包括：碰撞风险代理率（TTC 失败）、交通违章代理率（超速和红灯风险）、行人礼让失败率、不舒适率、Safety/\allowbreak{}Rule/\allowbreak{}Comfort/\allowbreak{}Overall 均分，以及目标速度相对专家规则的 MAE。由于轻量模拟器没有真实物理碰撞和传感器闭环，所有“率”均明确称为代理指标。
+主要指标包括：基于运动学 TTC 的碰撞风险率、交通规则风险率、行人礼让失败率、不舒适率、Safety/\allowbreak{}Rule/\allowbreak{}Comfort/\allowbreak{}Overall 均分，以及目标速度相对 nuScenes 未来 ego pose 专家速度的 MAE。由于实验是记录数据上的开放环候选轨迹评价，不包含闭环车辆动力学，风险率不能解释为实际道路碰撞率。
 
 \subsection{对比与消融}
-对比四种策略：Baseline、SFT、Reflection SFT、Reflection DPO。Critic 分析比较 Rule、LLM 离线代理与 Reward Model 的样本数、均值和标准差；失败案例分析聚焦红灯、行人和前车三类风险；泛化测试仅使用训练中未出现的 night 天气和更大曲率范围。
+对比四种策略：Baseline、SFT、Reflection SFT、Reflection DPO。Critic 分析比较 Rule、LLM 离线代理与 Reward Model 的样本数、均值和标准差；泛化测试使用 scene 级独立测试划分，确保同一 nuScenes scene 不同时进入训练和测试。
 
 \section{实验结果与分析}
 \subsection{未见场景主结果}
@@ -165,13 +165,13 @@ Baseline 是带噪声且可能漏检信号灯、行人或前车的轻量规划�
 \endfoot
 \bottomrule
 \endlastfoot
-Baseline & 8.9\% & 45.4\% & 5.9\% & 94.909 & 81.335 & 91.176 & 5.163 \\
-SFT & 3.2\% & 7.5\% & 1.5\% & 98.339 & 95.985 & 97.847 & 1.512 \\
-Reflection SFT & 3.3\% & 7.2\% & 1.4\% & 98.394 & 96.123 & 97.920 & 1.561 \\
-Reflection DPO & 3.0\% & 5.1\% & 0.3\% & 99.045 & 97.343 & 98.640 & 1.980 \\
+Baseline & 21.83\% & 3.97\% & 35.71\% & 73.615 & 99.277 & 87.874 & 9.102 \\
+SFT & 0.00\% & 0.00\% & 8.93\% & 95.089 & 100.000 & 96.425 & 2.834 \\
+Reflection SFT & 0.00\% & 0.00\% & 0.00\% & 100.000 & 100.000 & 100.000 & 5.541 \\
+Reflection DPO & 0.00\% & 0.00\% & 1.79\% & 99.018 & 100.000 & 99.558 & 5.616 \\
 \end{longtable}
 \end{center}
-SFT 带来最大的第一阶段提升，说明专家动作监督仍是基本盘。Reflection SFT 相比 SFT 的总体提升较小，但 Rule 分数、违章率和行人礼让均继续改善，符合失败样本加权主要强化安全长尾而非平均回归误差的预期。DPO 进一步显著降低行人和规则风险，但目标速度 MAE 从 1.561 上升到 1.980，表现出更保守的安全偏好与专家平均速度之间的权衡；这正是偏好优化需要结合效率约束的原因。
+SFT 带来最大的第一阶段提升，并把目标速度 MAE 降至 2.834 m/\allowbreak{}s，说明 nuScenes 专家动作监督仍是基本盘。Reflection SFT 在规则阈值下消除已建模风险，但目标速度 MAE 回升至 5.541 m/\allowbreak{}s；DPO 同样保持较高安全分，却没有改善速度误差。这表明当前反思权重偏向安全和停车，存在“得分很高但驾驶过于保守”的奖励偏置。完整系统需加入路线进度、通行效率和闭环完成率，不能把 100 分解释为真实驾驶能力完美。
 
 \subsection{Critic 对比}
 \begin{center}
@@ -190,46 +190,55 @@ SFT 带来最大的第一阶段提升，说明专家动作监督仍是基本盘�
 \endfoot
 \bottomrule
 \endlastfoot
-Rule-based & 4000 & 92.132 & 11.632 & 确定、可解释、覆盖受规则限制 \\
-LLM offline proxy & 500 & 91.959 & 11.986 & 可复现的接口代理，不等同真实 LLM \\
-Reward Model & 500 & 91.213 & 8.374 & 平滑但方差偏小，可能弱化极端失败 \\
+Rule-based & 4089 & 87.899 & 14.908 & 确定、可解释、覆盖受规则限制 \\
+LLM offline proxy & 512 & 87.652 & 14.662 & 可复现的接口代理，不等同真实 LLM \\
+Reward Model & 511 & 86.167 & 11.088 & 平滑但方差偏小，可能弱化极端失败 \\
 \end{longtable}
 \end{center}
 三个 Critic 均值接近，但 Reward Model 的标准差明显更小，说明线性奖励模型存在回归均值倾向，对严重长尾风险可能不够敏感。因此推荐采用“规则硬门槛 + 学习型排序 + LLM 解释复核”的组合，而非让单一 Reward Model 决定安全样本是否通过。
 
 \subsection{失败归因与泛化}
-红灯失败可由“红灯、停止线距离、目标速度过高”三项证据定位，纠正策略为提前渐进制动并保持停车；行人失败关联行人距离与当前目标速度，纠正为提前礼让并保留全停余量；跟车失败使用 TTC 代理直接定位。未见场景仍保持显著改善，说明闭环学习到的是条件约束而非场景编号。然而，夜间在本 demo 中只是结构化变量，没有真实图像域偏移，因此不能据此宣称视觉泛化已经解决。
+行人失败关联原始 annotation、行人距离与候选目标速度，纠正为提前礼让并保留全停余量；跟车失败结合车辆 annotation、相对速度和 TTC 定位。scene 级独立测试仍保持明显改善，说明闭环学习到的不是简单 sample\_token 记忆。交通灯相位、停止线和限速在 nuScenes mini 元数据中缺乏直接逐帧标签，本实验只采用中性先验，因此不据此宣称真实红灯识别或地图规则泛化已经解决。
 
 \subsection{舒适性指标解释}
-四种策略在当前轨迹生成器中均未触发不舒适阈值，Comfort 均分为 100。这不是“舒适性完美”，而是当前解析轨迹由平滑一阶速度控制器生成，场景难度不足以区分模型。真实扩展应加入急切入、非平稳前车、道路颠簸和横向避障，并使用加速度、jerk、横摆角速度及 CARLA 动力学反馈扩大舒适性辨识度。
+Baseline 与 Reflection 系列在当前阈值下 Comfort 为 100；SFT 的不舒适率为 7.14\%、Comfort 为 93.174，说明对专家速度的快速回归可能引入加减速突变。这些分数只反映离散 waypoint 的纵向 jerk 与横向加速度。后续应加入急切入、非平稳前车、道路颠簸和闭环车辆动力学，并同时评价路线进度。
 
 \section{Demo 与工程实现}
-运行 \texttt{python\ scripts/\allowbreak{}run\_all.py\ --samples\ 5000} 可一键执行数据构建、轻量训练和评估；随后执行 \texttt{python\ scripts/\allowbreak{}prepare\_vla\_training.py} 导出 OpenDriveVLA 三阶段训练数据。运行 \texttt{python\ scripts/\allowbreak{}run\_demo.py} 后访问 \path{http://127.0.0.1:8000}，Windows 也可双击根目录的 \texttt{启动Demo.bat}。新版网页由 Python 动态 API 驱动，不是离线静态页面：前端不保存固定场景、轨迹或分数，四类演示场景由后端从完整 5,000 条训练数据中动态匹配，也支持按 \path{scene_id} 和随机偏移加载。道路几何、停止线、信号灯、前车、行人、弯道和天气效果均由本次场景 JSON 驱动；红色轨迹表示初始 Baseline，青色轨迹表示反思后策略；播放控件动态模拟 6 秒路径规划窗口。
+下载并解压 nuScenes mini 后，按顺序执行以下命令复现实验：
+
+\begin{itemize}
+  \item \texttt{python\ scripts/\allowbreak{}extract\_nuscenes.py}
+  \item \texttt{python\ scripts/\allowbreak{}train.py}
+  \item \texttt{python\ scripts/\allowbreak{}evaluate.py}
+  \item \texttt{python\ scripts/\allowbreak{}prepare\_vla\_training.py}
+\end{itemize}
+
+运行 \texttt{python\ scripts/\allowbreak{}run\_demo.py} 后访问 \path{http://127.0.0.1:8000}，Windows 也可双击根目录的 \texttt{启动Demo.bat}。新版网页由 Python 动态 API 驱动，不是离线静态页面：前端不保存固定场景、轨迹或分数，四类演示场景由后端从完整 5,112 条训练记录中动态匹配，也支持按 \path{scene_id} 和随机偏移加载。道路、前车、行人、弯道和天气效果由本次场景 JSON 驱动，CAM\_FRONT 来自对应 nuScenes sample；红色轨迹表示初始 Baseline，青色轨迹表示反思后策略。
 
 现场演示建议按以下顺序操作：
 
 \begin{itemize}
-  \item 选择“红灯路口”，运行后观察 Baseline 是否因较高目标速度触发 \path{red_light_risk}。
+  \item 选择“近距前车”，运行后观察运动前车与 Baseline 的时变间距风险。
   \item 播放双轨迹动画，对比反思后策略的提前减速和 Overall 变化。
   \item 在时间线中依次解释感知、初始规划、Critic 证据、纠正策略和重规划结果。
-  \item 切换“行人横穿”或“前车急缓”，验证同一闭环对不同失败根因的迁移。
+  \item 切换“行人横穿”或“转弯场景”，验证同一闭环对不同失败根因的迁移。
   \item 切换 Reflection SFT 与 Reflection DPO，讨论偏好优化更安全但可能更保守的权衡。
 \end{itemize}
 
-页面可继续手工调整速度、距离、曲率、导航和天气；修改后使用新的场景 ID，避免误命中旧缓存。服务端使用当前策略实时规划，并以规则 Critic 65\%、训练后的 Reward Critic 25\%、完整训练集七近邻校准 10\% 计算三维分数。\path{/api/logs} 持续输出数据文件加载、Reward Critic 参数连接、规划调用的实际 runtime 与耗时、评分近邻和 Reflection 结果；\path{/api/data/status}、\path{/api/scenarios}、\path{/api/scenario} 提供可核验的数据连接。完整操作、字段含义和故障排查见 \texttt{docs/\allowbreak{}Demo使用说明.md}；基座选择与轻量化边界见 \texttt{docs/\allowbreak{}基座模型与轻量化说明.md}。
+页面可继续手工调整速度、距离、曲率、导航和天气；修改后使用新的场景 ID，避免误命中旧缓存。服务端使用当前策略实时规划，并以规则 Critic 65\%、训练后的 Reward Critic 25\%、完整训练集七近邻校准 10\% 计算三维分数。动画中的前车按场景速度行驶，行人在斑马线上连续横穿，反思后策略以运动学安全边界避免追尾，自车停车后保持最后有效道路航向。命令行以简洁摘要显示模型、评分和反思状态，详细结构化事件保留在 \path{/api/logs} 供调试但不展示在前端；\path{/api/data/status}、\path{/api/scenarios}、\path{/api/scenario} 提供可核验的数据连接。完整操作、字段含义和故障排查见 \texttt{docs/\allowbreak{}Demo使用说明.md}；基座选择与轻量化边界见 \texttt{docs/\allowbreak{}基座模型与轻量化说明.md}。
 
-主要目录为：\path{configs/} 保存实验配置；\path{src/selfevolve_drive/} 保存 schema、模拟器、Planner、Critic、Reflection、训练与评估；\path{scripts/} 保存独立数据/\allowbreak{}训练/\allowbreak{}评估/\allowbreak{}demo 入口；\path{data/} 保存 5K JSONL；\path{models/} 保存 SFT、Reflection SFT、DPO 与 Reward Model 参数；\path{outputs/} 保存真实运行指标；\path{tests/} 保存回归测试；\path{references/} 保存资料清单；\path{report/} 保存报告。
+主要目录为：\path{configs/} 保存实验配置；\path{src/selfevolve_drive/} 保存 nuScenes 适配器、schema、Planner、Critic、Reflection、训练与评估；\path{scripts/} 保存独立抽取/\allowbreak{}训练/\allowbreak{}评估/\allowbreak{}demo 入口；\path{data/} 保存 5,112 条可追溯 JSONL；\path{models/} 保存 SFT、Reflection SFT、DPO 与 Reward Model 参数；\path{outputs/} 保存实际运行指标；\path{tests/} 保存回归测试；\path{references/} 保存资料清单；\path{report/} 保存报告。
 
 \section{OpenDriveVLA /\allowbreak{} nuScenes /\allowbreak{} CARLA 扩展方案}
-第一阶段接入 nuScenes：使用 OpenDriveVLA 官方数据准备脚本生成多视角视觉 token、ego state、command 和专家 waypoint；使用现有 \path{OpenDriveVLAAdapter} 与官方轨迹解析器返回本项目 Trajectory schema；用 nuScenes box、地图与信号标注替换合成 Scenario。第二阶段使用已交付的 \path{opendrivevla_peft.json} 和 \path{train_opendrivevla_peft.py} 执行 Baseline、普通轨迹 LoRA SFT、\texttt{输入+失败轨迹+Reflection→纠正轨迹} Reflection SFT，并从同场景候选轨迹构造标准 DPO 对。第三阶段接入 CARLA/\allowbreak{}Bench2Drive 闭环，测量实际碰撞率、红灯/\allowbreak{}停车牌违章、路线完成率、加速度、jerk 和闭环驾驶分数。
+第一阶段的 nuScenes mini 接入已经完成：真实六相机引用、sample、scene、annotation 溯源和未来 ego pose 均进入统一 schema，LiteVLA 已在这些记录上完成轻量训练。下一阶段在 Linux/\allowbreak{}CUDA 中运行 OpenDriveVLA 官方视觉编码器，将当前六相机引用转换为其视觉 token，并使用已交付的 \path{opendrivevla_peft.json} 和 \path{train_opendrivevla_peft.py} 执行 LoRA SFT、Reflection SFT 和 DPO。最后接入 nuScenes full 与 CARLA/\allowbreak{}Bench2Drive 闭环，测量实际碰撞率、红灯/\allowbreak{}停车牌违章、路线完成率、加速度、jerk 和闭环驾驶分数。
 
 LLM Critic 的线上实验需固定模型版本、temperature=0、JSON schema、重试策略和原始响应缓存；至少抽样 200 条由两名人工标注者复核，报告安全/\allowbreak{}规则/\allowbreak{}舒适三维相关系数、严重失败召回率、Cohen's \ensuremath{\kappa} 或 Krippendorff's \ensuremath{\alpha}。Reward Model 应从线性基线升级为能处理视觉与轨迹 token 的模型，并保留规则硬约束作为安全兜底。
 
 \section{局限、风险与伦理}
-本项目已下载并核验 gated OpenDriveVLA-0.5B checkpoint 和官方代码，但尚未下载 nuScenes 完整数据，也未在真实车辆或 CARLA 闭环中训练。Windows 轻量 Planner 不处理原始多相机图像，因而当前结果是以冻结基座资产、标准轨迹格式和统一适配接口为约束的轻量自进化实验，而非官方 OpenDriveVLA 视觉性能复现。LLM Critic 可能产生貌似合理但错误的解释，Reward Model 可能被策略钻空子，自训练还可能放大自身偏差。因此任何自动反思样本都必须经过规则门槛、置信过滤、分布监控与人工抽检；真实车辆部署必须保留独立安全层、故障回退和版本回滚，禁止未经闭环仿真和安全审查直接上车。
+本项目已下载并核验 gated OpenDriveVLA-0.5B checkpoint、官方代码和 nuScenes v1.0-mini，并在后者上完成数据抽取与轻量模型实验，但尚未运行 OpenDriveVLA 完整视觉权重前向或 LoRA GPU 训练，也未在真实车辆或 CARLA 闭环中验证。Windows Planner 的决策特征来自 nuScenes 表和标注，页面能显示真实相机帧，但 LiteVLA 本身不编码图像像素，因而当前结果不是官方 OpenDriveVLA 视觉性能复现。nuScenes mini 只有 10 个 scene，且不直接提供本实验需要的逐帧灯态、停止线和限速标签。LLM Critic 可能产生貌似合理但错误的解释，Reward Model 可能被策略钻空子，自训练还可能放大自身偏差。因此任何自动反思样本都必须经过规则门槛、置信过滤、分布监控与人工抽检；真实车辆部署必须保留独立安全层、故障回退和版本回滚。
 
 \section{结论}
-本文完成了课程要求的四大核心模块、全套脚本、5K 数据、三类 Critic、四种策略、三轮持续自进化、未见场景评估和可交互 Demo。轻量实验证明，结构化 Reflection 可以把失败证据转为具有训练价值的纠正信号；普通 SFT 提供主要能力提升，Reflection 加权、失败经验回放与 DPO 对安全长尾有额外收益。项目以已下载并核验的 OpenDriveVLA-0.5B 为冻结基座资产，交付了 LoRA SFT、Reflection SFT、DPO 的数据、配置、环境校验和训练入口；Windows 现场版本通过明确披露的 CPU 回退保障稳定运行。后续只需在 Linux/\allowbreak{}CUDA 和 nuScenes 条件下执行同一训练入口、导入真实轨迹缓存并补充官方指标，无需重写 Critic、Reflection、数据 schema 或 Demo。
+本文完成了课程要求的四大核心模块、全套脚本、5,112 条 nuScenes 可追溯反思记录、三类 Critic、四种策略、三轮持续自进化、scene 级独立测试和可交互 Demo。轻量实验证明，结构化 Reflection 可以把真实场景标注上的失败证据转为训练信号；普通 SFT 提供主要能力提升，Reflection 加权和偏好优化进一步压低规则风险，但也暴露出保守化与奖励偏置。项目以已下载并核验的 OpenDriveVLA-0.5B 为必要冻结基座资产，交付了 LoRA SFT、Reflection SFT、DPO 的真实图像引用数据、配置、环境校验和训练入口；Windows 现场版本使用训练后的 CPU 轻量策略稳定运行。后续可在 Linux/\allowbreak{}CUDA 中加载同一基座权重和六相机输入执行完整视觉训练，而无需重写 Critic、Reflection、数据 schema 或 Demo。
 
 \section*{参考文献与代码}
 \addcontentsline{toc}{section}{参考文献与代码}
@@ -262,22 +271,22 @@ LLM Critic 的线上实验需固定模型版本、temperature=0、JSON schema、
 \endfoot
 \bottomrule
 \endlastfoot
-5K～10K 反思数据 & \path{data/reflection_dataset.jsonl}，实际 5,000 条 & 完成 \\
+5K～10K 反思数据 & \path{data/reflection_dataset.jsonl}，实际 5,112 条 nuScenes 记录 & 完成 \\
 自动生成与质量过滤 & \path{pipeline.py}、质量阈值与 accepted 字段 & 完成 \\
 Safety/\allowbreak{}Rule/\allowbreak{}Comfort & \path{critics.py} 三维评分及证据 & 完成 \\
 Rule/\allowbreak{}LLM/\allowbreak{}Reward Model & 三类 Critic 与统计对比 & 完成；LLM 默认离线代理 \\
 Baseline/\allowbreak{}SFT/\allowbreak{}Reflection SFT & 三组模型及未见场景结果 & 完成 \\
 Reflection+DPO/\allowbreak{}GRPO & DPO 轻量实现；GRPO 方案说明 & DPO 完成，GRPO 为扩展 \\
-碰撞/\allowbreak{}违章/\allowbreak{}舒适评估 & \path{outputs/metrics.json} & 完成（合成代理） \\
+碰撞/\allowbreak{}违章/\allowbreak{}舒适评估 & \path{outputs/metrics.json} & 完成（nuScenes 开放环） \\
 失败原因定位 & 五类 failure 标签与 evidence & 完成 \\
-泛化能力 & 1,000 条含夜间/\allowbreak{}高曲率未见场景 & 完成（结构化代理） \\
+泛化能力 & 1,008 条 scene 级隔离测试记录 & 完成（开放环） \\
 全套脚本和配置 & \path{scripts/}、\path{configs/default.json} & 完成 \\
 一键复现 & \path{scripts/run_all.py} & 完成 \\
 现场 Demo & \path{scripts/run_demo.py} + 网页 & 完成 \\
-真实场景可视化 & 双策略动态轨迹、信号灯/\allowbreak{}行人/\allowbreak{}前车、反思时间线 & 完成（开放环模拟） \\
+真实场景可视化 & nuScenes CAM\_FRONT、双策略动态轨迹、运动前车/\allowbreak{}行人、反思时间线 & 完成（开放环） \\
 必要基座 & OpenDriveVLA-0.5B checkpoint 与官方代码已下载并通过结构审计 & 完成（冻结基座资产） \\
-多轮自进化 & 三轮 rollout→Critic→Reflection→记忆回放；835 条经验记忆 & 完成（轻量实验） \\
-OpenDriveVLA 训练数据 & SFT 1813、Reflection SFT 1813、DPO 1112 对 & 完成（轻量数据） \\
+多轮自进化 & 三轮 rollout→Critic→Reflection→记忆回放；1,790 条经验记忆 & 完成（轻量实验） \\
+OpenDriveVLA 训练数据 & SFT 1881、Reflection SFT 1881、DPO 1464 对，含六相机引用 & 完成（nuScenes） \\
 LoRA/\allowbreak{}PEFT 训练代码 & \path{train_opendrivevla_peft.py} 与配置；Windows 可 check-only & 完成代码；GPU 执行为扩展 \\
 使用文档 & \texttt{docs/\allowbreak{}Demo使用说明.md}、\texttt{docs/\allowbreak{}基座模型与轻量化说明.md} & 完成 \\
 自动测试 & \path{tests/test_core.py} & 完成 \\

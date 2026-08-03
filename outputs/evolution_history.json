@@ -2,46 +2,40 @@
   {
     "round": 1,
     "policy": "evolution_round_0",
-    "samples": 1813,
-    "revised_samples": 326,
-    "mean_overall": 96.245,
-    "failure_events": 387,
+    "samples": 1881,
+    "revised_samples": 656,
+    "mean_overall": 89.726,
+    "failure_events": 808,
     "failure_breakdown": {
-      "red_light_risk": 122,
-      "pedestrian_yield_failure": 105,
-      "unsafe_following": 80,
-      "speeding": 80
+      "pedestrian_yield_failure": 656,
+      "uncomfortable_motion": 152
     },
-    "memory_size": 326
+    "memory_size": 656
   },
   {
     "round": 2,
     "policy": "evolution_round_1",
-    "samples": 1813,
-    "revised_samples": 257,
-    "mean_overall": 97.167,
-    "failure_events": 312,
+    "samples": 1881,
+    "revised_samples": 576,
+    "mean_overall": 90.682,
+    "failure_events": 751,
     "failure_breakdown": {
-      "pedestrian_yield_failure": 70,
-      "red_light_risk": 88,
-      "unsafe_following": 78,
-      "speeding": 76
+      "pedestrian_yield_failure": 576,
+      "uncomfortable_motion": 175
     },
-    "memory_size": 583
+    "memory_size": 1232
   },
   {
     "round": 3,
     "policy": "evolution_round_2",
-    "samples": 1813,
-    "revised_samples": 252,
-    "mean_overall": 97.238,
-    "failure_events": 302,
+    "samples": 1881,
+    "revised_samples": 558,
+    "mean_overall": 91.213,
+    "failure_events": 692,
     "failure_breakdown": {
-      "pedestrian_yield_failure": 69,
-      "red_light_risk": 84,
-      "unsafe_following": 75,
-      "speeding": 74
+      "pedestrian_yield_failure": 558,
+      "uncomfortable_motion": 134
     },
-    "memory_size": 835
+    "memory_size": 1790
   }
 ]

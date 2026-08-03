@@ -1,4 +1,5 @@
 import sys
+import io
 import json
 import os
 import tempfile
@@ -8,6 +9,7 @@ import urllib.request
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
+from contextlib import redirect_stdout
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -21,6 +23,7 @@ from selfevolve_drive.simulator import generate_scenarios
 from selfevolve_drive.self_evolution import run_self_evolution
 from selfevolve_drive.vla_training_data import trajectory_text
 from selfevolve_drive.web_demo import DATA_STORE, Handler, compare
+from selfevolve_drive.demo_runtime import RuntimeEventLog
 
 
 class CoreTests(unittest.TestCase):
@@ -106,6 +109,38 @@ class CoreTests(unittest.TestCase):
         for name in ("index.html", "styles.css", "runtime.css", "app.js"):
             self.assertTrue((ROOT / "demo" / name).is_file())
         self.assertNotIn("const presets=", (ROOT / "demo" / "app.js").read_text(encoding="utf-8"))
+        frontend = (ROOT / "demo" / "app.js").read_text(encoding="utf-8")
+        page = (ROOT / "demo" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("trajectoryHeading", frontend)
+        self.assertIn("visual.lead_vehicle.speed * animationTime", frontend)
+        self.assertIn("smoothProgress", frontend)
+        self.assertNotIn("pollLogs", frontend)
+        self.assertNotIn("后端实时日志", page)
+
+    def test_revised_policy_stays_behind_moving_lead_vehicle(self):
+        scenario = generate_scenarios(1, 19)[0]
+        scenario.ego_speed = 16.0
+        scenario.speed_limit = 16.7
+        scenario.lead_distance = 8.0
+        scenario.lead_speed = 0.5
+        scenario.traffic_light = "green"
+        scenario.pedestrian_distance = 100.0
+        trajectory = Policy("reflection_sft").plan(scenario)
+        for index, point in enumerate(trajectory.points, 1):
+            lead_x = scenario.lead_distance + scenario.lead_speed * index * .5
+            self.assertLessEqual(point[0], lead_x - 3.8 + 1e-6)
+
+    def test_console_log_is_human_readable(self):
+        stream = io.StringIO()
+        with redirect_stdout(stream):
+            RuntimeEventLog().emit(
+                "model_call", "规划模型调用完成", policy="reflection_sft",
+                actual_runtime="lite", latency_ms=8.2, ignored="verbose",
+            )
+        output = stream.getvalue()
+        self.assertIn("模型：规划模型调用完成", output)
+        self.assertIn("policy=reflection_sft", output)
+        self.assertNotIn('{"seq"', output)
 
     def test_demo_indexes_complete_training_file(self):
         status = DATA_STORE.status()
@@ -114,6 +149,20 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(status["records"], line_count)
         self.assertTrue(status["indexed_all_valid_rows"])
         self.assertGreaterEqual(len(DATA_STORE.presets()), 4)
+
+    def test_nuscenes_records_keep_visual_and_annotation_provenance(self):
+        manifest = json.loads((ROOT / "data" / "nuscenes_manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["dataset"], "nuScenes")
+        self.assertEqual(manifest["records"], 5112)
+        with (ROOT / "data" / "reflection_dataset.jsonl").open(encoding="utf-8") as handle:
+            row = json.loads(next(handle))
+        source = row["source"]
+        self.assertEqual(len(source["sample_token"]), 32)
+        self.assertEqual(len(source["image_refs"]), 6)
+        self.assertTrue(source["annotation_tokens"])
+        self.assertEqual(len(row["expert_trajectory"]["points"]), 12)
+        self.assertTrue(all((ROOT / "data" / "nuscenes" / path).is_file()
+                            for path in source["image_refs"].values()))
 
     def test_demo_compare_returns_two_trajectories(self):
         obj = {"ego_speed": 13, "speed_limit": 13.9, "lead_distance": 32,
@@ -141,9 +190,16 @@ class CoreTests(unittest.TestCase):
                 presets = json.load(response)
             with urllib.request.urlopen(base + "/runtime.css") as response:
                 content_type = response.headers.get_content_type()
-            self.assertEqual(status["records"], 5000)
+            image_url = base + presets["items"][0]["camera_image_url"]
+            with urllib.request.urlopen(image_url) as response:
+                image_type = response.headers.get_content_type()
+                image_prefix = response.read(2)
+            manifest = json.loads((ROOT / "data" / "nuscenes_manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(status["records"], manifest["records"])
             self.assertEqual(len(presets["items"]), 4)
             self.assertEqual(content_type, "text/css")
+            self.assertEqual(image_type, "image/jpeg")
+            self.assertEqual(image_prefix, b"\xff\xd8")
         finally:
             server.shutdown()
             server.server_close()

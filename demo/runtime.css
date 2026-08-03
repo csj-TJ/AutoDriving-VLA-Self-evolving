@@ -36,32 +36,24 @@
   line-height: 1.55;
 }
 .score-source b { color: #a9f0e7; }
-.log-panel { min-height: 240px; }
-.runtime-log {
-  height: 220px;
-  overflow: auto;
-  padding: 9px 12px;
-  background: #06101a;
-  font-family: "Cascadia Code", Consolas, monospace;
+.camera-preview {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  width: min(34%, 300px);
+  margin: 0;
+  padding: 5px;
+  border: 1px solid #42617b;
+  border-radius: 10px;
+  background: #07131fea;
+  box-shadow: 0 8px 28px #0009;
+  display: none;
 }
-.log-entry { border-left: 2px solid #35516d; padding: 6px 8px; margin-bottom: 6px; background: #0b1723; }
-.log-entry span { color: #617991; font-size: 9px; }
-.log-entry b { float: right; color: #70b8e8; font-size: 9px; text-transform: uppercase; }
-.log-entry p { margin: 4px 0; color: #c0cfdb; font-size: 10px; }
-.log-entry small {
-  display: block;
-  color: #617b91;
-  font-size: 9px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.log-model_call { border-left-color: #35d8d0; }
-.log-critic_call { border-left-color: #ffb547; }
-.log-error { border-left-color: #ff6376; }
+.camera-preview.visible { display: block; }
+.camera-preview img { display: block; width: 100%; border-radius: 6px; }
+.camera-preview figcaption { padding: 5px 3px 1px; color: #8ea7bb; font-size: 9px; }
 .right { grid-template-rows: auto auto auto 1fr; }
 .scenario-tabs .empty { grid-column: 1 / -1; padding: 8px; }
 @media (max-width: 760px) {
   .scene-name { display: none; }
-  .runtime-log { height: 180px; }
 }

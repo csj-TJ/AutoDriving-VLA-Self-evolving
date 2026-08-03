@@ -15,8 +15,7 @@ const state = {
   scenarioSource: 'training_dataset',
   dirty: false,
   dataTotal: 0,
-  logSeq: 0,
-  logs: [],
+  cameraImageUrl: '',
 };
 
 function escapeHtml(value) {
@@ -39,7 +38,18 @@ async function api(url, options) {
   return body;
 }
 
-function applyScenario(scenario, sampleId = '', source = 'training_dataset', runNow = true) {
+function setCameraPreview(url = '') {
+  state.cameraImageUrl = url || '';
+  const preview = $('#cameraPreview');
+  const image = $('#cameraImage');
+  preview.classList.toggle('visible', Boolean(url));
+  image.onerror = () => preview.classList.remove('visible');
+  image.onload = () => preview.classList.add('visible');
+  if (url) image.src = url;
+  else image.removeAttribute('src');
+}
+
+function applyScenario(scenario, sampleId = '', source = 'training_dataset', runNow = true, cameraUrl = '') {
   state.sceneId = scenario.scene_id;
   state.sampleId = sampleId;
   state.scenarioSource = source;
@@ -50,6 +60,7 @@ function applyScenario(scenario, sampleId = '', source = 'training_dataset', run
   form.elements.source_sample_id.value = sampleId;
   $('#sceneIdInput').value = scenario.scene_id;
   $('#sceneName').textContent = `${scenario.scene_id}${sampleId ? ` · ${sampleId}` : ''}`;
+  setCameraPreview(cameraUrl);
   $('#run').disabled = false;
   $('#run').textContent = '运行 Critic → Reflection → 重规划';
   if (runNow) run();
@@ -67,7 +78,7 @@ function formPayload() {
 async function loadSceneById(sceneId) {
   if (!sceneId.trim()) return showError('请输入训练集 Scene ID');
   const result = await api(`/api/scenario?id=${encodeURIComponent(sceneId.trim())}`);
-  applyScenario(result.scenario, result.sample_id, 'training_dataset');
+  applyScenario(result.scenario, result.sample_id, 'training_dataset', true, result.camera_image_url);
 }
 
 async function loadRandomScene() {
@@ -76,7 +87,7 @@ async function loadRandomScene() {
   const page = await api(`/api/scenarios?offset=${offset}&limit=1`);
   if (!page.items.length) return showError('未找到训练样本');
   const row = page.items[0];
-  applyScenario(row.scenario, row.sample_id, 'training_dataset_random');
+  applyScenario(row.scenario, row.sample_id, 'training_dataset_random', true, row.camera_image_url);
 }
 
 async function loadPresets() {
@@ -89,11 +100,11 @@ async function loadPresets() {
     button.onclick = () => {
       box.querySelectorAll('button').forEach(item => item.classList.toggle('active', item === button));
       const preset = result.items[Number(button.dataset.index)];
-      applyScenario(preset.scenario, preset.sample_id, `training_preset:${preset.key}`);
+      applyScenario(preset.scenario, preset.sample_id, `training_preset:${preset.key}`, true, preset.camera_image_url);
     };
   });
   if (!result.items.length) throw new Error('训练数据中没有可用预设场景');
-  applyScenario(result.items[0].scenario, result.items[0].sample_id, `training_preset:${result.items[0].key}`);
+  applyScenario(result.items[0].scenario, result.items[0].sample_id, `training_preset:${result.items[0].key}`, true, result.items[0].camera_image_url);
 }
 
 async function run() {
@@ -230,13 +241,23 @@ function drawRoad() {
     ctx.beginPath(); ctx.arc(signal.x, signal.y + dy, 6, 0, Math.PI * 2); ctx.fill();
   });
 
+  const animationTime = Math.min(state.frame, 11) * .5;
   if (visual.lead_vehicle.visible) {
-    const lead = worldPoint([visual.lead_vehicle.x, visual.lead_vehicle.y]);
-    drawCar(lead.x, lead.y, '#d98b37');
+    const leadX = visual.lead_vehicle.x + visual.lead_vehicle.speed * animationTime;
+    const leadY = scenario.road_curvature * (Math.max(0, leadX) ** 1.45) * .12;
+    const lead = worldPoint([leadX, leadY]);
+    const leadAhead = worldPoint([leadX + 1, scenario.road_curvature * ((leadX + 1) ** 1.45) * .12]);
+    const leadAngle = Math.atan2(leadAhead.y - lead.y, leadAhead.x - lead.x) + Math.PI / 2;
+    drawCar(lead.x, lead.y, '#d98b37', leadAngle);
     ctx.fillStyle = '#ffd69a'; ctx.font = '12px sans-serif';
     ctx.fillText(`前车 ${visual.lead_vehicle.speed.toFixed(1)}m/s`, lead.x + 18, lead.y);
   }
-  if (visual.pedestrian.visible) drawPedestrian(worldPoint([visual.pedestrian.x, visual.pedestrian.y]));
+  if (visual.pedestrian.visible) {
+    const crossProgress = Math.min(1, animationTime / 5.5);
+    const smoothProgress = crossProgress * crossProgress * (3 - 2 * crossProgress);
+    const pedestrianY = visual.pedestrian.y + (visual.road_width_m + 1.1) * smoothProgress;
+    drawPedestrian(worldPoint([visual.pedestrian.x, pedestrianY]), animationTime);
+  }
 
   ctx.fillStyle = '#dcebf7'; ctx.font = '600 13px sans-serif';
   const command = { straight: '↑ 直行', left: '↖ 左转', right: '↗ 右转' }[visual.route_command];
@@ -259,13 +280,16 @@ function drawRain() {
   }
 }
 
-function drawPedestrian(point) {
+function drawPedestrian(point, time = 0) {
+  const stride = Math.sin(time * 7) * 5;
   ctx.fillStyle = '#ffd56a';
   ctx.beginPath(); ctx.arc(point.x, point.y - 8, 5, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = '#ffd56a'; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.moveTo(point.x, point.y - 2); ctx.lineTo(point.x, point.y + 12);
-  ctx.moveTo(point.x, point.y + 4); ctx.lineTo(point.x - 7, point.y + 10);
-  ctx.moveTo(point.x, point.y + 4); ctx.lineTo(point.x + 7, point.y + 10); ctx.stroke();
+  ctx.moveTo(point.x, point.y + 4); ctx.lineTo(point.x - 7, point.y + 10 + stride);
+  ctx.moveTo(point.x, point.y + 4); ctx.lineTo(point.x + 7, point.y + 10 - stride);
+  ctx.moveTo(point.x, point.y + 12); ctx.lineTo(point.x - 5, point.y + 20 - stride);
+  ctx.moveTo(point.x, point.y + 12); ctx.lineTo(point.x + 5, point.y + 20 + stride); ctx.stroke();
 }
 
 function drawCar(x, y, color, angle = 0) {
@@ -286,6 +310,27 @@ function drawTrajectory(points, color, width) {
   ctx.stroke();
 }
 
+function trajectoryHeading(points, index) {
+  const current = worldPoint(points[index]);
+  for (let distance = 1; distance < points.length; distance += 1) {
+    const forwardIndex = index + distance;
+    if (forwardIndex < points.length) {
+      const forward = worldPoint(points[forwardIndex]);
+      if (Math.hypot(forward.x - current.x, forward.y - current.y) > .5) {
+        return Math.atan2(forward.y - current.y, forward.x - current.x) + Math.PI / 2;
+      }
+    }
+    const backwardIndex = index - distance;
+    if (backwardIndex >= 0) {
+      const backward = worldPoint(points[backwardIndex]);
+      if (Math.hypot(current.x - backward.x, current.y - backward.y) > .5) {
+        return Math.atan2(current.y - backward.y, current.x - backward.x) + Math.PI / 2;
+      }
+    }
+  }
+  return 0;
+}
+
 function draw() {
   if (!state.data) return;
   const selected = state.data.selected_policy;
@@ -296,8 +341,7 @@ function draw() {
   drawTrajectory(revised, '#35d8d0', 4);
   const index = Math.min(revised.length - 1, Math.floor(state.frame));
   const current = worldPoint(revised[index]);
-  const next = worldPoint(revised[Math.min(index + 1, revised.length - 1)]);
-  drawCar(current.x, current.y, '#35d8d0', Math.atan2(next.y - current.y, next.x - current.x) + Math.PI / 2);
+  drawCar(current.x, current.y, '#35d8d0', trajectoryHeading(revised, index));
   $('#hudSpeed').innerHTML = `${revised[index][2].toFixed(1)} <small>m/s</small>`;
   $('#progress').style.width = `${state.frame / (revised.length - 1) * 100}%`;
   const active = Math.min(4, Math.floor(state.frame / (revised.length - 1) * 5));
@@ -317,33 +361,6 @@ function animationTick(timestamp) {
     state.lastFrameAt = timestamp;
   }
   requestAnimationFrame(animationTick);
-}
-
-function renderLogs() {
-  const box = $('#runtimeLog');
-  box.innerHTML = state.logs.length ? state.logs.map(event => {
-    const time = event.time.split('T')[1]?.slice(0, 12) || event.time;
-    const detail = Object.entries(event.details || {}).slice(0, 5).map(([key, value]) => `${key}=${Array.isArray(value) ? value.join(',') : value}`).join(' · ');
-    return `<div class="log-entry log-${escapeHtml(event.category)}"><span>${escapeHtml(time)} #${event.seq}</span><b>${escapeHtml(event.category)}</b><p>${escapeHtml(event.message)}</p><small>${escapeHtml(detail)}</small></div>`;
-  }).join('') : '<div class="empty">暂无后端事件</div>';
-  box.scrollTop = box.scrollHeight;
-  $('#logCursor').textContent = `Live · #${state.logSeq}`;
-}
-
-async function pollLogs() {
-  try {
-    const result = await api(`/api/logs?after=${state.logSeq}&limit=100`);
-    if (result.events.length) {
-      state.logs.push(...result.events);
-      state.logs = state.logs.slice(-120);
-      renderLogs();
-    }
-    state.logSeq = result.last_seq;
-  } catch (_) {
-    // A temporary polling failure must not interrupt the driving animation.
-  } finally {
-    setTimeout(pollLogs, 900);
-  }
 }
 
 sceneFields.forEach(name => form.elements[name].addEventListener('input', () => {
@@ -374,7 +391,6 @@ async function boot() {
     showError(`初始化失败：${error.message}`);
     $('#dataStatus').textContent = error.message;
   }
-  pollLogs();
   requestAnimationFrame(animationTick);
 }
 

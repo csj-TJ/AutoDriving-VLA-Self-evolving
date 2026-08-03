@@ -6,13 +6,13 @@
 
 | 原始要求 | 当前已有 | 仍需正式实验补齐 |
 |---|---|---|
-| 5K～10K Trajectory→Critic→Reflection 数据 | 5K 合成机制数据、统一 schema、过滤与质量分 | 使用 OpenDriveVLA/nuScenes 真实 rollout 替换或补充，并标注真实、增强、代理来源 |
+| 5K～10K Trajectory→Critic→Reflection 数据 | 5,112 条 nuScenes 衍生 rollout、统一 schema、过滤、质量分和完整溯源 | 扩展到 nuScenes trainval/full |
 | Safety/Rule/Comfort 三维 Critic | Rule-based、离线 LLM proxy、轻量 Reward Model | 用真实 VLA 失败样本做一致性、可解释性和失败定位实验；建议抽样接入真实 LLM Critic |
 | OpenDriveVLA Baseline | checkpoint 与官方推理代码已下载；输出解析器和缓存适配已实现 | 在 Linux/CUDA/nuScenes 环境运行官方基线并保存结果 |
 | SFT | CPU 机制版 SFT 已实现 | 以 OpenDriveVLA checkpoint 初始化 LoRA/PEFT SFT |
 | Reflection SFT | CPU 机制版 Reflection SFT 已实现 | 同一基座、同一数据划分完成 LoRA Reflection SFT |
 | Reflection+DPO | 机制版已实现 | 原文为可选；算力允许时再做真实 adapter DPO |
-| 复杂/未见场景与碰撞、违章、平稳性 | 合成开放环指标与未见场景切分已有 | 补充 nuScenes 官方轨迹 L2/碰撞指标，并保持代理指标不冒充闭环成绩 |
+| 复杂/未见场景与碰撞、违章、平稳性 | scene 级隔离的 nuScenes mini 开放环指标 | 补充官方轨迹 L2/碰撞指标和 CARLA 闭环成绩 |
 | 全套代码与可复现说明 | 数据、训练、评估、Demo、一键流程已有 | 增加 GPU 环境日志、checkpoint/adapter 版本、真实实验命令和输出 |
 
 ## 2. 已完成的真实基座适配

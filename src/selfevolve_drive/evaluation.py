@@ -10,15 +10,21 @@ from .schema import Scenario
 from .simulator import expert_target_speed
 
 
-def evaluate_policy(policy: Policy, scenes: list[Scenario], weights: dict[str, float]) -> dict[str, Any]:
+def evaluate_policy(
+    policy: Policy,
+    scenes: list[Scenario],
+    weights: dict[str, float],
+    target_speeds: list[float] | None = None,
+) -> dict[str, Any]:
     critic = RuleBasedCritic(weights)
     scores, failures, errors = [], Counter(), []
-    for s in scenes:
+    for index, s in enumerate(scenes):
         t = policy.plan(s)
         c = critic.evaluate(s, t)
         scores.append([c.safety_score, c.rule_score, c.comfort_score, c.overall_score])
         failures.update(c.failures)
-        errors.append(abs(t.target_speed - expert_target_speed(s)))
+        expected = target_speeds[index] if target_speeds is not None else expert_target_speed(s)
+        errors.append(abs(t.target_speed - expected))
     a = np.asarray(scores)
     n = max(1, len(scenes))
     return {
@@ -38,4 +44,3 @@ def critic_agreement(records: list[dict]) -> dict[str, Any]:
     for r in records:
         by_type.setdefault(r["critic"]["critic_type"], []).append(r["critic"]["overall_score"])
     return {k: {"count": len(v), "mean_overall": round(float(np.mean(v)), 3), "std": round(float(np.std(v)), 3)} for k, v in by_type.items()}
-

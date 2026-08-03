@@ -8,12 +8,12 @@ from .critics import RuleBasedCritic
 from .planner import Policy, scenario_features
 from .reflection import reflect
 from .schema import Scenario
-from .simulator import expert_target_speed
+from .training import record_target_speed
 
 
-def _weighted_fit(scenes: list[Scenario], sample_weights: list[float], ridge: float, name: str) -> Policy:
+def _weighted_fit(scenes: list[Scenario], targets: list[float], sample_weights: list[float], ridge: float, name: str) -> Policy:
     x = np.vstack([scenario_features(scene) for scene in scenes])
-    y = np.asarray([expert_target_speed(scene) for scene in scenes])
+    y = np.asarray(targets)
     scale = np.sqrt(np.asarray(sample_weights))[:, None]
     xw, yw = x * scale, y * scale[:, 0]
     weights = np.linalg.solve(xw.T @ xw + ridge * np.eye(x.shape[1]), xw.T @ yw)
@@ -29,8 +29,9 @@ def run_self_evolution(
     """Run local failure replay: rollout -> critic -> reflection -> weighted refit."""
     train_records = [r for r in records if r["split"] == "train" and r["accepted"]]
     scenes = [Scenario(**r["scenario"]) for r in train_records]
+    targets = [record_target_speed(record) for record in train_records]
     critic = RuleBasedCritic(critic_weights)
-    policy = _weighted_fit(scenes, [1.0] * len(scenes), ridge, "evolution_round_0")
+    policy = _weighted_fit(scenes, targets, [1.0] * len(scenes), ridge, "evolution_round_0")
     policies: list[Policy] = []
     history: list[dict] = []
     memory: list[dict] = []
@@ -40,7 +41,7 @@ def run_self_evolution(
         failures = Counter()
         scores: list[float] = []
         revised = 0
-        for source, scene in zip(train_records, scenes):
+        for source, scene, target in zip(train_records, scenes, targets):
             trajectory = policy.plan(scene)
             result = critic.evaluate(scene, trajectory)
             reflection = reflect(scene, trajectory, result)
@@ -55,8 +56,8 @@ def run_self_evolution(
                     "trajectory": trajectory.to_dict(),
                     "critic": result.to_dict(),
                     "reflection": reflection.to_dict(),
-                    "target_speed": expert_target_speed(scene),
-                    "source_type": "synthetic_proxy_self_evolution",
+                    "target_speed": target,
+                    "source_type": source.get("source", {}).get("dataset", "lightweight_proxy"),
                 })
             severity = len(result.failures)
             sample_weights.append(1.0 + severity * (1.0 + 0.4 * round_id) + (1.0 - result.overall_score / 100.0))
@@ -71,7 +72,7 @@ def run_self_evolution(
             "failure_breakdown": dict(failures),
             "memory_size": len(memory),
         })
-        policy = _weighted_fit(scenes, sample_weights, ridge, f"evolution_round_{round_id}")
+        policy = _weighted_fit(scenes, targets, sample_weights, ridge, f"evolution_round_{round_id}")
         policies.append(policy)
 
     return policies, history, memory

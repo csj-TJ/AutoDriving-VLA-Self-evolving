@@ -30,7 +30,8 @@ pip install -r requirements-gpu.txt
 ## 1. 仓库内容边界
 
 GitHub 主分支保存项目源码、配置、测试、使用文档、轻量模型参数、指标摘要、报告，以及
-LiteVLA Demo 直接运行所需的 `data/reflection_dataset.jsonl`（5,000 条）。以下内容不提交：
+LiteVLA Demo 直接运行所需的 `data/reflection_dataset.jsonl`（5,112 条 nuScenes
+衍生记录）和 `data/nuscenes_manifest.json`。以下内容不提交：
 
 - OpenDriveVLA-0.5B 权重和 tokenizer 大文件；
 - OpenDriveVLA 官方源码的本地副本与定制 OpenMMLab 依赖；
@@ -47,7 +48,7 @@ python -m pip install -r requirements.txt
 python scripts/run_demo.py
 ```
 
-访问 `http://127.0.0.1:8000`。主分支已包含完整 5,000 条 LiteVLA Demo JSONL，
+访问 `http://127.0.0.1:8000`。主分支已包含完整 5,112 条 LiteVLA Demo JSONL，
 不需要先执行数据生成。前端由 `demo/index.html`、CSS 文件和 `demo/app.js` 组成，
 本身不保存固定场景、规划轨迹或评分。场景来自完整训练数据索引，规划与评分由 Python API 实时返回。
 
@@ -117,6 +118,19 @@ python scripts/train_opendrivevla_peft.py --stage dpo --check-only
 Linux/CUDA 环境确认无误后，去掉 `--check-only` 执行对应阶段。
 
 ## 5. nuScenes 数据需求
+
+本课程轻量实验使用 nuScenes v1.0-mini。下载并解压到 `data/nuscenes/` 后运行：
+
+```powershell
+python scripts/extract_nuscenes.py
+python scripts/train.py
+python scripts/evaluate.py
+python scripts/prepare_vla_training.py
+```
+
+抽取器要求六相机关键帧齐全并保留 6 秒未来 ego pose；输出保留 `sample_token`、
+六相机 `sample_data_token`/图像引用、`annotation_token`、scene/log/location 和未来轨迹来源。
+原始数据不会提交；协作者仅运行 Demo 时无需下载，缺少原图时相机预览会自动隐藏。
 
 完整 OpenDriveVLA 官方推理与评估需要：
 

@@ -41,8 +41,11 @@ def export_training_sets(records: list[dict], model_dir: Path, output_dir: Path)
             "id": record["sample_id"],
             "scene_id": scene.scene_id,
             "base_model": "OpenDriveVLA-0.5B",
-            "source_type": "synthetic_proxy_lightweight_experiment",
-            "image_refs": [],
+            "source_type": "nuscenes_v1.0-mini",
+            "sample_token": record.get("sample_token", record.get("source", {}).get("sample_token")),
+            "image_refs": record.get("image_refs", []),
+            "annotation_tokens": record.get("source", {}).get("annotation_tokens", []),
+            "source": record.get("source", {}),
         }
         sft.append({**common, "prompt": prompt, "response": trajectory_text(ordinary)})
         reflection = record["reflection"]
@@ -74,7 +77,7 @@ def export_training_sets(records: list[dict], model_dir: Path, output_dir: Path)
     manifest = {
         "base_model": "OpenDriveVLA-0.5B",
         "initialization": "references/models/OpenDriveVLA-0.5B",
-        "source_scope": "lightweight simulator-backed proxy training; replace image_refs with nuScenes assets for full VLA training",
+        "source_scope": "nuScenes v1.0-mini keyframes with six-camera references, annotation provenance and future ego-pose supervision",
         "counts": {key: len(rows) for key, (_, rows) in outputs.items()},
         "files": {key: f"data/opendrivevla_training/{path.name}" for key, (path, _) in outputs.items()},
     }

@@ -12,20 +12,22 @@ python scripts/run_demo.py
 
 ## 2. 现场演示流程
 
-1. 选择由完整训练数据索引动态匹配出的“红灯路口”“行人横穿”“近距前车”或“恶劣弯道”，也可输入任意 `scene_id` 或随机抽取样本。
+1. 选择由完整 nuScenes 训练数据索引动态匹配出的“真实路口”“行人横穿”“近距前车”或“转弯场景”，也可输入任意 `scene_id` 或随机抽取样本。
 2. 选择反思后策略：SFT、Reflection SFT 或 Reflection DPO。
 3. 点击“运行 Critic → Reflection → 重规划”。
 4. 在中央俯视图比较红色 Baseline 与青色反思后轨迹，使用播放、暂停和重置按钮观察 6 秒预测窗口。
-5. 右侧依次讲解三维评分、评分数据近邻、后端实时日志、感知—初始规划—Critic—反思—重规划事件链，以及结构化根因、证据、纠正策略和反事实动作。
+5. 右侧依次讲解三维评分、评分数据近邻、感知—初始规划—Critic—反思—重规划事件链，以及结构化根因、证据、纠正策略和反事实动作。
 
-推荐课堂演示“红灯路口”：Baseline 往往保持较高目标速度，Critic 定位 `red_light_risk`，反思后策略提前减速。再切换“行人横穿”，展示同一机制如何迁移到礼让约束。
+推荐先演示“近距前车”：观察前车持续运动、Baseline 风险和反思轨迹的动态安全间距；再切换“行人横穿”，展示行人运动、礼让评分与重规划。nuScenes mini 不含可直接使用的逐帧灯态，因此“真实路口”使用中性灯态先验，不把它作为真实红灯识别演示。
 
 ## 3. 展示元素含义
 
 - 红色轨迹：有意保留漏检风险的初始 Baseline，用于产生失败样本。
 - 青色轨迹：SFT、Reflection SFT 或 Reflection DPO 的重规划结果。
 - Safety / Rule / Comfort：每次请求都用当前轨迹实时计算。单维评分由规则 Critic 65%、训练后的 Reward Critic 25% 和完整训练数据的七近邻校准 10% 组成；Overall 再按 0.45 / 0.35 / 0.20 汇总。
-- 后端实时日志：显示完整数据文件加载、Reward Critic 参数连接、规划模型调用、实际 runtime、耗时、评分近邻和 Reflection 结果。
+- 后端命令行日志：以“请求、模型、评分、反思、完成”五类简洁摘要显示关键状态；详细结构化事件仍可通过 `/api/logs` 调试，但不在驾驶台页面展示。
+- 动态参与者：前车按场景速度持续行驶，行人在斑马线上横穿；反思后策略带有移动前车安全间距约束，自车停车时保持最后有效航向。
+- 实景图像：原始 nuScenes mini 存在时显示与 sample_token 对应的 CAM_FRONT；未下载原图的协作机器会自动隐藏预览，不影响规划与评分。
 - 闭环事件：把一次决策拆为可审计的五阶段可视化摘要。
 - Driving Reflection：从 Baseline 失败生成的结构化训练知识，而不是模型的隐藏思维链。
 
@@ -35,7 +37,7 @@ python scripts/run_demo.py
 
 checkpoint 已下载不等于当前网页进程已经加载权重。官方推理入口会导入 DeepSpeed，并依赖 Linux、CUDA、PyTorch 和定制 MMCV/MMDet3D。普通 Windows 现场环境采用“GPU 离线推理、Demo 缓存回放”以保证稳定性。
 
-面向正式模型实验，OpenDriveVLA-0.5B 是必要基座。必须先从官方模型页取得访问权限并下载 checkpoint，再通过 LoRA 冻结大部分视觉骨干，仅训练投影层、轨迹头和少量语言层，最后使用本项目的轻量化代理训练数据执行 Reflection SFT 与 DPO。该方案不是从零训练，且比 7B/22GB 级模型更适合课程算力。官方模型网址：https://huggingface.co/OpenDriveVLA/OpenDriveVLA-0.5B
+面向正式模型实验，OpenDriveVLA-0.5B 是必要基座。必须先从官方模型页取得访问权限并下载 checkpoint，再通过 LoRA 冻结大部分视觉骨干，仅训练投影层、轨迹头和少量语言层，最后使用本项目的 nuScenes 衍生训练数据执行 Reflection SFT 与 DPO。该方案不是从零训练，且比 7B/22GB 级模型更适合课程算力。官方模型网址：https://huggingface.co/OpenDriveVLA/OpenDriveVLA-0.5B
 
 ## 5. OpenDriveVLA-0.5B 的 CPU 边界
 

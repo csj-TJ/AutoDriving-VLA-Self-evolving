@@ -45,14 +45,13 @@
 
     <main class="panel stage">
       <div class="hud"><div class="hud-box"><span>自车速度</span><b id="hudSpeed">0.0 <small>m/s</small></b></div><div class="hud-box scene-name"><span>当前数据场景</span><b id="sceneName">等待加载</b></div><div class="hud-box legend"><em><i class="dot" style="background:#ff6376"></i>Baseline</em><em><i class="dot" style="background:#35d8d0"></i>反思后</em></div></div>
-      <div class="canvas-wrap"><canvas id="scene" width="880" height="510" aria-label="俯视道路及双策略轨迹动画"></canvas></div>
+      <div class="canvas-wrap"><canvas id="scene" width="880" height="510" aria-label="俯视道路及双策略轨迹动画"></canvas><figure class="camera-preview" id="cameraPreview"><img id="cameraImage" alt="nuScenes CAM_FRONT 真实场景"><figcaption>nuScenes · CAM_FRONT</figcaption></figure></div>
       <div class="playback"><button class="iconbtn" id="play" type="button" aria-label="播放或暂停">▶</button><button class="iconbtn" id="reset" type="button" aria-label="重置">↺</button><div class="progress"><i id="progress"></i></div><span class="speed">6.0 s 预测窗口</span></div>
       <div class="compare-strip"><article class="policy-card"><header><h3 style="color:#ff8795">初始 Baseline</h3><strong id="baseOverall">--</strong></header><div class="metric"><span>目标速度</span><b id="baseTarget">--</b></div><div class="metric"><span>失败项</span><b id="baseFailures">--</b></div></article><article class="policy-card"><header><h3 style="color:#6df0e7">反思后策略</h3><strong id="newOverall">--</strong></header><div class="metric"><span>目标速度</span><b id="newTarget">--</b></div><div class="metric"><span>决策变化</span><b id="decision">--</b></div></article></div>
     </main>
 
     <section class="right">
       <article class="panel"><div class="panel-title"><h2>Critic 评分</h2><span>Live model + data</span></div><div class="score-grid" id="scores"></div><div class="delta">相对 Baseline：<strong id="delta">等待运行</strong></div><div class="score-source" id="scoreSource">等待实时评分来源…</div></article>
-      <article class="panel log-panel"><div class="panel-title"><h2>后端实时日志</h2><span id="logCursor">Live · #0</span></div><div class="runtime-log" id="runtimeLog"><div class="empty">等待数据、模型与 Critic 调用…</div></div></article>
       <article class="panel"><div class="panel-title"><h2>自进化训练</h2><span>Failure replay</span></div><div class="timeline" id="evolution"><div class="empty">正在读取训练轮次…</div></div></article>
       <article class="panel"><div class="panel-title"><h2>闭环事件</h2><span>Live trace</span></div><div class="timeline" id="timeline"><div class="empty">运行场景后显示完整决策链。</div></div></article>
       <article class="panel"><div class="panel-title"><h2>Driving Reflection</h2><span>Structured</span></div><div class="reflection" id="reflection"><span class="verdict">等待 Critic</span><p class="empty">这里将展示失败根因、可核验证据、纠正策略与反事实动作。</p></div></article>
