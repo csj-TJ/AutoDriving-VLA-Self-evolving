@@ -1,10 +1,4 @@
-"""Build the editable XeLaTeX report from report/项目报告.md.
-
-The converter intentionally supports the small Markdown subset used by the
-project report: headings, paragraphs, ordered/unordered lists, pipe tables,
-inline code, and URLs.  Keeping the Markdown as the content source prevents
-the Word and LaTeX editions from drifting apart.
-"""
+"""Compile the retained editable XeLaTeX report into the latest PDF."""
 
 from __future__ import annotations
 
@@ -18,6 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "report" / "项目报告.md"
 OUTPUT = ROOT / "report" / "自动驾驶VLA自进化研究报告.tex"
+PDF_STEM = "自动驾驶VLA自进化研究报告_最新版"
 
 
 PREAMBLE = r"""\documentclass[UTF8,a4paper,12pt,fontset=fandol]{ctexart}
@@ -268,7 +263,7 @@ def compile_pdf() -> None:
     engine = shutil.which("xelatex")
     if not engine:
         raise SystemExit("xelatex was not found. Install MiKTeX or TeX Live first.")
-    command = [engine, "-interaction=nonstopmode", "-halt-on-error", OUTPUT.name]
+    command = [engine, "-interaction=nonstopmode", "-halt-on-error", f"-jobname={PDF_STEM}", OUTPUT.name]
     for _ in range(2):
         completed = subprocess.run(
             command,
@@ -280,7 +275,7 @@ def compile_pdf() -> None:
         if completed.returncode:
             tail = completed.stdout.decode(errors="replace")[-4000:]
             raise SystemExit(f"XeLaTeX failed with code {completed.returncode}:\n{tail}")
-    log_path = OUTPUT.with_suffix(".log")
+    log_path = OUTPUT.parent / f"{PDF_STEM}.log"
     log_text = log_path.read_text(encoding="utf-8", errors="ignore") if log_path.exists() else ""
     missing = log_text.count("Missing character:")
     overfull = log_text.count("Overfull \\hbox")
@@ -288,21 +283,21 @@ def compile_pdf() -> None:
         raise SystemExit(f"XeLaTeX produced {missing} missing-glyph warnings; PDF was not accepted.")
     print(f"XeLaTeX QA: missing glyphs={missing}, overfull boxes={overfull}")
     for suffix in (".aux", ".log", ".out", ".toc"):
-        artifact = OUTPUT.with_suffix(suffix)
+        artifact = OUTPUT.parent / f"{PDF_STEM}{suffix}"
         if artifact.exists():
             artifact.unlink()
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate the Chinese XeLaTeX project report.")
+    parser = argparse.ArgumentParser(description="Compile the retained Chinese XeLaTeX project report.")
     parser.add_argument("--compile", action="store_true", help="Run XeLaTeX twice and create the PDF.")
     args = parser.parse_args()
-    latex = convert(SOURCE.read_text(encoding="utf-8"))
-    OUTPUT.write_text(latex, encoding="utf-8", newline="\n")
-    print(f"Wrote {OUTPUT.relative_to(ROOT)} ({len(latex):,} characters)")
+    if not OUTPUT.is_file():
+        raise SystemExit(f"Missing LaTeX source: {OUTPUT}")
+    print(f"Using {OUTPUT.relative_to(ROOT)}")
     if args.compile:
         compile_pdf()
-        print(f"Wrote {OUTPUT.with_suffix('.pdf').relative_to(ROOT)}")
+        print(f"Wrote {(OUTPUT.parent / f'{PDF_STEM}.pdf').relative_to(ROOT)}")
 
 
 if __name__ == "__main__":

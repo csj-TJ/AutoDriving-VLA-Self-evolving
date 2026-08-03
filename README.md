@@ -34,9 +34,9 @@ Windows 也可直接双击 `启动Demo.bat`。新版驾驶台从完整训练数�
 - Demo：`demo/index.html` + `demo/styles.css` + `demo/app.js` + `scripts/run_demo.py`，通过 Python API 动态生成双轨迹、Critic、Reflection 与自进化历史。
 - 基座查验与适配：`scripts/audit_opendrivevla.py` 检查本地资产，`scripts/import_opendrivevla_outputs.py` 将官方 `plan_conv.json` 转为 Demo 可回放缓存。
 - 完整报告：主交付为 `report/自动驾驶VLA自进化研究报告.tex` 与
-  `report/自动驾驶VLA自进化研究报告_最新版.pdf`；内容源为
-  `report/项目报告.md`。安装 MiKTeX 或 TeX Live（含 XeLaTeX）后运行
-  `python tools/build_report_latex.py --compile` 可重新生成 LaTeX 与 PDF。参考论文与源码的
+  `report/自动驾驶VLA自进化研究报告_最新版.pdf`。`.tex` 是唯一可编辑源稿；安装
+  MiKTeX 或 TeX Live（含 XeLaTeX）后运行 `python tools/build_report_latex.py --compile`
+  可重新编译最新版 PDF。参考论文与源码的
   本地情况见 `references/REFERENCE_MANIFEST.md`。
 - GitHub 协作、基座依赖、数据集目录和 GPU 环境说明：见 `docs/GitHub协作与环境配置.md`。
 
