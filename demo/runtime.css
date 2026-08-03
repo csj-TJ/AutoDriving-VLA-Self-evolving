@@ -1,0 +1,67 @@
+.dataset-picker {
+  padding: 10px;
+  border: 1px solid #263b52;
+  border-radius: 10px;
+  background: #091522;
+  margin-bottom: 12px;
+}
+.dataset-picker .field { grid-template-columns: 1fr; margin-top: 0; }
+.dataset-picker .field input { margin-top: 6px; }
+.dataset-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.dataset-actions button {
+  border: 1px solid #2b4761;
+  background: #102337;
+  color: #b9cad9;
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+}
+.dataset-actions button:hover { border-color: var(--cyan); color: #8ff7ee; }
+.data-status { color: #728aa0; font-size: 10px; line-height: 1.55; margin-top: 8px; }
+.data-status b { color: var(--cyan); }
+.run:disabled { opacity: .55; cursor: wait; }
+.scene-name { margin-left: auto; margin-right: 10px; max-width: 330px; }
+.scene-name b {
+  font-size: 12px;
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.score-source {
+  border-top: 1px solid var(--line);
+  padding: 10px 14px;
+  color: #7f95aa;
+  font-size: 10px;
+  line-height: 1.55;
+}
+.score-source b { color: #a9f0e7; }
+.log-panel { min-height: 240px; }
+.runtime-log {
+  height: 220px;
+  overflow: auto;
+  padding: 9px 12px;
+  background: #06101a;
+  font-family: "Cascadia Code", Consolas, monospace;
+}
+.log-entry { border-left: 2px solid #35516d; padding: 6px 8px; margin-bottom: 6px; background: #0b1723; }
+.log-entry span { color: #617991; font-size: 9px; }
+.log-entry b { float: right; color: #70b8e8; font-size: 9px; text-transform: uppercase; }
+.log-entry p { margin: 4px 0; color: #c0cfdb; font-size: 10px; }
+.log-entry small {
+  display: block;
+  color: #617b91;
+  font-size: 9px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.log-model_call { border-left-color: #35d8d0; }
+.log-critic_call { border-left-color: #ffb547; }
+.log-error { border-left-color: #ff6376; }
+.right { grid-template-rows: auto auto auto 1fr; }
+.scenario-tabs .empty { grid-column: 1 / -1; padding: 8px; }
+@media (max-width: 760px) {
+  .scene-name { display: none; }
+  .runtime-log { height: 180px; }
+}

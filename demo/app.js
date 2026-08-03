@@ -1,19 +1,381 @@
-const $=s=>document.querySelector(s), form=$('#form'), canvas=$('#scene'), ctx=canvas.getContext('2d');
-const presets={red:{scene_id:'demo_red_light',ego_speed:13,speed_limit:13.9,lead_distance:32,lead_speed:7,traffic_light:'red',stopline_distance:16,pedestrian_distance:45,road_curvature:.015,route_command:'straight',weather:'clear'},ped:{scene_id:'demo_pedestrian',ego_speed:11,speed_limit:13.9,lead_distance:40,lead_speed:10,traffic_light:'green',stopline_distance:30,pedestrian_distance:11,road_curvature:.01,route_command:'straight',weather:'clear'},lead:{scene_id:'demo_lead_vehicle',ego_speed:14,speed_limit:16.7,lead_distance:9,lead_speed:4,traffic_light:'green',stopline_distance:42,pedestrian_distance:50,road_curvature:.008,route_command:'straight',weather:'clear'},curve:{scene_id:'demo_rainy_curve',ego_speed:13,speed_limit:13.9,lead_distance:38,lead_speed:10,traffic_light:'green',stopline_distance:40,pedestrian_distance:48,road_curvature:.085,route_command:'left',weather:'night'}};
-let data=null, frame=0, playing=true, last=0;
-let activeScene='demo_red_light';
-function formData(){const o=Object.fromEntries(new FormData(form));['ego_speed','speed_limit','lead_distance','lead_speed','stopline_distance','pedestrian_distance','road_curvature'].forEach(k=>o[k]=+o[k]);o.scene_id=activeScene;return o}
-function setPreset(name){activeScene=presets[name].scene_id;Object.entries(presets[name]).forEach(([k,v])=>{if(form.elements[k])form.elements[k].value=v});document.querySelectorAll('#presets button').forEach(b=>b.classList.toggle('active',b.dataset.preset===name));run()}
-document.querySelectorAll('#presets button').forEach(b=>b.onclick=()=>setPreset(b.dataset.preset));
-async function run(){const btn=$('#run');btn.disabled=true;btn.textContent='正在生成双策略轨迹…';try{const r=await fetch('/api/compare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(formData())});const d=await r.json();if(!r.ok||d.error)throw Error(d.error||'服务响应失败');data=d;frame=0;playing=true;renderPanels();draw();}catch(e){const box=$('#error');box.textContent=e.message;box.style.display='block';setTimeout(()=>box.style.display='none',3500)}finally{btn.disabled=false;btn.textContent='运行 Critic → Reflection → 重规划'}}
-function renderPanels(){const sel=data.selected_policy,b=data.results.baseline,n=data.results[sel],c=n.critic,r=b.reflection,m=data.model,bm=b.model,nm=n.model;$('#baseOverall').textContent=b.critic.overall_score.toFixed(1);$('#newOverall').textContent=c.overall_score.toFixed(1);$('#baseTarget').textContent=b.trajectory.target_speed.toFixed(1)+' m/s';$('#newTarget').textContent=n.trajectory.target_speed.toFixed(1)+' m/s';$('#baseFailures').textContent=b.critic.failures.length?b.critic.failures.length+' 项':'0 项';$('#decision').textContent=data.delta.target_speed<-.2?'减速修正':data.delta.target_speed>.2?'加速修正':'保持策略';$('#delta').textContent=(data.delta.overall>=0?'+':'')+data.delta.overall.toFixed(1)+' 综合分';const scores=[['Safety',c.safety_score],['Rule',c.rule_score],['Comfort',c.comfort_score],['Overall',c.overall_score]];$('#scores').innerHTML=scores.map(([k,v])=>`<div class="score"><span>${k}</span><strong>${v.toFixed(1)}</strong><div class="bar"><i style="width:${v}%"></i></div></div>`).join('');$('#timeline').innerHTML=data.events.map((e,i)=>`<div class="event ${i===0?'active':''}"><b>${String(i+1).padStart(2,'0')} · ${e.phase}</b><p>${esc(e.detail)}</p></div>`).join('');const hist=data.evolution_history||[];$('#evolution').innerHTML=hist.length?hist.map((e,i)=>`<div class="event ${i===hist.length-1?'active':''}"><b>Round ${e.round} · 综合分 ${e.mean_overall.toFixed(1)}</b><p>反思 ${e.revised_samples} 条 · 失败事件 ${e.failure_events} · 记忆池 ${e.memory_size}</p></div>`).join(''):'<div class="empty">尚未运行本地自进化训练。</div>';$('#reflection').innerHTML=`<span class="verdict">${r.verdict==='revise'?'需要修正':'轨迹可接受'}</span><h3>根因</h3>${list(r.root_causes)}<h3>证据</h3>${list(r.evidence)}<h3>纠正策略</h3>${list(r.corrective_strategy)}<h3>反事实动作</h3><ul><li>${esc(r.counterfactual_action)}</li></ul>`;const real=bm.runtime_mode==='opendrivevla_cache'||nm.runtime_mode==='opendrivevla_cache';$('#runtimePill').innerHTML=`<i></i>${real?'含 OpenDriveVLA 真实缓存':'CPU 回退模式'}`;$('#model').innerHTML=`<strong>OpenDriveVLA-0.5B · ${m.checkpoint_installed?'checkpoint 已核验':'checkpoint 不完整'}</strong>Baseline：${esc(bm.runtime)}<br>${sel}：${esc(nm.runtime)}<br>自进化：${hist.length} 轮 · ${hist.length?hist[hist.length-1].memory_size:0} 条反思记忆<br>${esc(m.disclosure)}`}
-function list(a){return a&&a.length?'<ul>'+a.map(x=>`<li>${esc(x)}</li>`).join('')+'</ul>':'<p class="empty">无硬约束失败</p>'}function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
-function roadPoint(p){const scale=8.2,center=canvas.width/2;return{x:center+p[1]*30,y:canvas.height-42-p[0]*scale}}
-function rounded(x,y,w,h,r,fill){ctx.fillStyle=fill;ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill()}
-function drawRoad(s){const w=canvas.width,h=canvas.height;ctx.fillStyle=s.weather==='night'?'#06101a':'#101b25';ctx.fillRect(0,0,w,h);for(let i=0;i<70;i++){const x=(i*83)%w,y=(i*47)%h;ctx.fillStyle=i%3?'#122436':'#173044';ctx.fillRect(x,y,2,2)}ctx.save();ctx.translate(w/2,0);ctx.rotate(-s.road_curvature*.9);ctx.fillStyle='#27313b';ctx.fillRect(-150,-80,300,h+180);ctx.fillStyle='#131d27';ctx.fillRect(-160,-80,10,h+180);ctx.fillRect(150,-80,10,h+180);ctx.setLineDash([22,22]);ctx.strokeStyle='#d7dee877';ctx.lineWidth=2;[-50,50].forEach(x=>{ctx.beginPath();ctx.moveTo(x,-80);ctx.lineTo(x,h+80);ctx.stroke()});ctx.setLineDash([]);ctx.restore();const stop=roadPoint([s.stopline_distance,0]);ctx.fillStyle='#f5f7fa';ctx.fillRect(w/2-142,stop.y-4,284,8);for(let i=-4;i<=4;i+=2){ctx.fillStyle='#d9e0e7';ctx.fillRect(w/2+i*22-17,stop.y-48,34,8)}const lightY=Math.max(50,stop.y-28);rounded(w/2+172,lightY-28,22,61,7,'#172331');ctx.fillStyle=s.traffic_light==='red'?'#ff5268':'#2d453e';ctx.beginPath();ctx.arc(w/2+183,lightY-14,6,0,7);ctx.fill();ctx.fillStyle=s.traffic_light==='green'?'#4ee398':'#29463e';ctx.beginPath();ctx.arc(w/2+183,lightY+17,6,0,7);ctx.fill();const lead=roadPoint([s.lead_distance,0]);car(lead.x-14,lead.y-25,'#d98b37',0);if(s.pedestrian_distance<55){const ped=roadPoint([s.pedestrian_distance,-2.5]);ctx.fillStyle='#ffd56a';ctx.beginPath();ctx.arc(ped.x,ped.y-7,5,0,7);ctx.fill();ctx.strokeStyle='#ffd56a';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(ped.x,ped.y-1);ctx.lineTo(ped.x,ped.y+12);ctx.moveTo(ped.x,ped.y+4);ctx.lineTo(ped.x-7,ped.y+9);ctx.moveTo(ped.x,ped.y+4);ctx.lineTo(ped.x+7,ped.y+9);ctx.stroke()}if(s.weather==='rain'){ctx.strokeStyle='#6da5d455';ctx.lineWidth=1;for(let i=0;i<45;i++){let x=(i*71)%w,y=(i*43)%h;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-8,y+17);ctx.stroke()}}}
-function car(x,y,color,angle=0){ctx.save();ctx.translate(x+14,y+25);ctx.rotate(angle);rounded(-14,-25,28,50,7,color);ctx.fillStyle='#9ed5ec';ctx.fillRect(-9,-14,18,10);ctx.fillStyle='#111a22';ctx.fillRect(-9,10,18,8);ctx.restore()}
-function path(points,color,width){ctx.strokeStyle=color;ctx.lineWidth=width;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();points.forEach((p,i)=>{const q=roadPoint(p);i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y)});ctx.stroke();points.forEach((p,i)=>{if(i%2)return;const q=roadPoint(p);ctx.fillStyle=color;ctx.beginPath();ctx.arc(q.x,q.y,2.4,0,7);ctx.fill()})}
-function draw(){if(!data)return;const s=data.scenario,b=data.results.baseline.trajectory.points,n=data.results[data.selected_policy].trajectory.points;drawRoad(s);path(b,'#ff6376',3);path(n,'#35d8d0',4);const idx=Math.min(n.length-1,Math.floor(frame));const p=roadPoint(n[idx]),next=roadPoint(n[Math.min(idx+1,n.length-1)]);car(p.x-14,p.y-25,'#35d8d0',Math.atan2(next.y-p.y,next.x-p.x)+Math.PI/2);$('#hudSpeed').innerHTML=n[idx][2].toFixed(1)+' <small>m/s</small>';$('#progress').style.width=(frame/(n.length-1)*100)+'%';const active=Math.min(4,Math.floor(frame/(n.length-1)*5));document.querySelectorAll('.event').forEach((e,i)=>e.classList.toggle('active',i<=active))}
-function tick(t){if(data&&playing&&t-last>150){frame+=.32;if(frame>=data.results[data.selected_policy].trajectory.points.length-1){frame=data.results[data.selected_policy].trajectory.points.length-1;playing=false;$('#play').textContent='▶'}draw();last=t}requestAnimationFrame(tick)}
-$('#play').onclick=()=>{playing=!playing;const n=data?data.results[data.selected_policy].trajectory.points.length:1;if(frame>=n-1&&playing)frame=0;$('#play').textContent=playing?'Ⅱ':'▶'};$('#reset').onclick=()=>{frame=0;playing=false;$('#play').textContent='▶';draw()};form.onsubmit=e=>{e.preventDefault();run()};
-fetch('/api/meta').then(r=>r.json()).then(d=>{const a=d.audit;$('#checkpointPill').innerHTML=`<i></i>${a.checkpoint_installed&&a.code_complete?'基座文件完整':'基座文件待补'}`;$('#model').innerHTML=`<strong>OpenDriveVLA-0.5B · ${a.checkpoint_installed?'checkpoint 已核验':'checkpoint 不完整'}</strong>官方代码：${a.code_complete?'完整':'不完整'} · GPU 依赖：${a.runtime_ready?'就绪':'当前环境未安装'}<br>真实缓存：${a.cache_available?'可用，将优先回放':'尚无，自动回退 CPU'}`}).catch(()=>{});run();requestAnimationFrame(tick);
+const $ = selector => document.querySelector(selector);
+const form = $('#form');
+const canvas = $('#scene');
+const ctx = canvas.getContext('2d');
+const numericFields = ['ego_speed', 'speed_limit', 'lead_distance', 'lead_speed', 'stopline_distance', 'pedestrian_distance', 'road_curvature'];
+const sceneFields = [...numericFields, 'weather', 'route_command', 'traffic_light'];
+
+const state = {
+  data: null,
+  frame: 0,
+  playing: false,
+  lastFrameAt: 0,
+  sceneId: '',
+  sampleId: '',
+  scenarioSource: 'training_dataset',
+  dirty: false,
+  dataTotal: 0,
+  logSeq: 0,
+  logs: [],
+};
+
+function escapeHtml(value) {
+  const node = document.createElement('div');
+  node.textContent = String(value ?? '');
+  return node.innerHTML;
+}
+
+function showError(message) {
+  const box = $('#error');
+  box.textContent = message;
+  box.style.display = 'block';
+  setTimeout(() => { box.style.display = 'none'; }, 5000);
+}
+
+async function api(url, options) {
+  const response = await fetch(url, options);
+  const body = await response.json();
+  if (!response.ok || body.error) throw new Error(body.error || `HTTP ${response.status}`);
+  return body;
+}
+
+function applyScenario(scenario, sampleId = '', source = 'training_dataset', runNow = true) {
+  state.sceneId = scenario.scene_id;
+  state.sampleId = sampleId;
+  state.scenarioSource = source;
+  state.dirty = false;
+  Object.entries(scenario).forEach(([key, value]) => {
+    if (form.elements[key]) form.elements[key].value = value;
+  });
+  form.elements.source_sample_id.value = sampleId;
+  $('#sceneIdInput').value = scenario.scene_id;
+  $('#sceneName').textContent = `${scenario.scene_id}${sampleId ? ` · ${sampleId}` : ''}`;
+  $('#run').disabled = false;
+  $('#run').textContent = '运行 Critic → Reflection → 重规划';
+  if (runNow) run();
+}
+
+function formPayload() {
+  const payload = Object.fromEntries(new FormData(form));
+  numericFields.forEach(key => { payload[key] = Number(payload[key]); });
+  payload.scene_id = state.dirty ? `${state.sceneId}:edited` : state.sceneId;
+  payload.scenario_source = state.dirty ? 'user_control_modified' : state.scenarioSource;
+  payload.source_sample_id = state.sampleId || null;
+  return payload;
+}
+
+async function loadSceneById(sceneId) {
+  if (!sceneId.trim()) return showError('请输入训练集 Scene ID');
+  const result = await api(`/api/scenario?id=${encodeURIComponent(sceneId.trim())}`);
+  applyScenario(result.scenario, result.sample_id, 'training_dataset');
+}
+
+async function loadRandomScene() {
+  if (!state.dataTotal) return showError('训练数据索引尚未加载');
+  const offset = Math.floor(Math.random() * state.dataTotal);
+  const page = await api(`/api/scenarios?offset=${offset}&limit=1`);
+  if (!page.items.length) return showError('未找到训练样本');
+  const row = page.items[0];
+  applyScenario(row.scenario, row.sample_id, 'training_dataset_random');
+}
+
+async function loadPresets() {
+  const result = await api('/api/scenarios/presets');
+  state.dataTotal = result.data.records;
+  $('#dataStatus').innerHTML = `已索引 <b>${result.data.records.toLocaleString()}</b> 条完整记录 · ${(result.data.bytes / 1048576).toFixed(2)} MB · ${escapeHtml(Object.entries(result.data.splits).map(([k, v]) => `${k}:${v}`).join(' / '))}`;
+  const box = $('#presets');
+  box.innerHTML = result.items.map((item, index) => `<button type="button" data-index="${index}" class="${index === 0 ? 'active' : ''}">${escapeHtml(item.label)}</button>`).join('');
+  box.querySelectorAll('button').forEach(button => {
+    button.onclick = () => {
+      box.querySelectorAll('button').forEach(item => item.classList.toggle('active', item === button));
+      const preset = result.items[Number(button.dataset.index)];
+      applyScenario(preset.scenario, preset.sample_id, `training_preset:${preset.key}`);
+    };
+  });
+  if (!result.items.length) throw new Error('训练数据中没有可用预设场景');
+  applyScenario(result.items[0].scenario, result.items[0].sample_id, `training_preset:${result.items[0].key}`);
+}
+
+async function run() {
+  const button = $('#run');
+  button.disabled = true;
+  button.textContent = '模型规划与数据评分中…';
+  try {
+    const result = await api('/api/compare', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formPayload()),
+    });
+    state.data = result;
+    state.frame = 0;
+    state.playing = true;
+    renderPanels();
+    draw();
+  } catch (error) {
+    showError(error.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = '运行 Critic → Reflection → 重规划';
+  }
+}
+
+function list(items) {
+  return items?.length
+    ? `<ul>${items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
+    : '<p class="empty">无硬约束失败</p>';
+}
+
+function renderPanels() {
+  const data = state.data;
+  const selected = data.selected_policy;
+  const baseline = data.results.baseline;
+  const revised = data.results[selected];
+  const critic = revised.critic;
+  const reflection = baseline.reflection;
+  const baselineModel = baseline.model;
+  const revisedModel = revised.model;
+  const provenance = revised.score_provenance;
+
+  $('#sceneName').textContent = `${data.scenario.scene_id} · 请求 ${data.request_id}`;
+  $('#baseOverall').textContent = baseline.critic.overall_score.toFixed(1);
+  $('#newOverall').textContent = critic.overall_score.toFixed(1);
+  $('#baseTarget').textContent = `${baseline.trajectory.target_speed.toFixed(1)} m/s`;
+  $('#newTarget').textContent = `${revised.trajectory.target_speed.toFixed(1)} m/s`;
+  $('#baseFailures').textContent = `${baseline.critic.failures.length} 项`;
+  $('#decision').textContent = data.delta.target_speed < -.2 ? '减速修正' : data.delta.target_speed > .2 ? '加速修正' : '保持策略';
+  $('#delta').textContent = `${data.delta.overall >= 0 ? '+' : ''}${data.delta.overall.toFixed(1)} 综合分`;
+
+  const scores = [['Safety', critic.safety_score], ['Rule', critic.rule_score], ['Comfort', critic.comfort_score], ['Overall', critic.overall_score]];
+  $('#scores').innerHTML = scores.map(([name, value]) => `<div class="score"><span>${name}</span><strong>${value.toFixed(1)}</strong><div class="bar"><i style="width:${value}%"></i></div></div>`).join('');
+  $('#scoreSource').innerHTML = `<b>${escapeHtml(critic.critic_type)}</b><br>规则实时轨迹评分 65% · Reward Critic 25% · 全训练集近邻 10%<br>近邻：${provenance.neighbors.map(item => escapeHtml(item.sample_id)).join('、')}<br>评分耗时：${provenance.latency_ms.toFixed(2)} ms`;
+
+  $('#timeline').innerHTML = data.events.map((event, index) => `<div class="event ${index === 0 ? 'active' : ''}"><b>${String(index + 1).padStart(2, '0')} · ${escapeHtml(event.phase)}</b><p>${escapeHtml(event.detail)}</p></div>`).join('');
+  const history = data.evolution_history || [];
+  $('#evolution').innerHTML = history.length
+    ? history.map((entry, index) => `<div class="event ${index === history.length - 1 ? 'active' : ''}"><b>Round ${entry.round} · 综合分 ${entry.mean_overall.toFixed(1)}</b><p>反思 ${entry.revised_samples} 条 · 失败事件 ${entry.failure_events} · 记忆池 ${entry.memory_size}</p></div>`).join('')
+    : '<div class="empty">尚未运行本地自进化训练。</div>';
+  $('#reflection').innerHTML = `<span class="verdict">${reflection.verdict === 'revise' ? '需要修正' : '轨迹可接受'}</span><h3>根因</h3>${list(reflection.root_causes)}<h3>证据</h3>${list(reflection.evidence)}<h3>纠正策略</h3>${list(reflection.corrective_strategy)}<h3>反事实动作</h3><ul><li>${escapeHtml(reflection.counterfactual_action)}</li></ul>`;
+
+  const usingCache = [baselineModel, revisedModel].some(model => model.runtime_mode === 'opendrivevla_cache');
+  $('#runtimePill').innerHTML = `<i></i>${usingCache ? 'OpenDriveVLA 真实缓存' : 'LiteVLA 实时回退'}`;
+  $('#model').innerHTML = `<strong>OpenDriveVLA-0.5B · ${revisedModel.checkpoint_installed ? 'checkpoint 已核验' : 'checkpoint 不完整'}</strong>请求模式：${escapeHtml(form.elements.runtime.value)}<br>Baseline 实际：${escapeHtml(baselineModel.runtime)} · ${data.provenance.timing.baseline.model_latency_ms.toFixed(2)} ms<br>${escapeHtml(selected)} 实际：${escapeHtml(revisedModel.runtime)} · ${data.provenance.timing[selected].model_latency_ms.toFixed(2)} ms<br>数据：${data.provenance.data.records.toLocaleString()} 条完整索引 · 来源 ${escapeHtml(data.provenance.scenario_source)}<br>${escapeHtml(revisedModel.disclosure)}`;
+}
+
+function worldPoint(point) {
+  const horizon = state.data?.visualization.world_horizon_m || 70;
+  const longitudinalScale = (canvas.height - 72) / horizon;
+  const lateralScale = 25;
+  return { x: canvas.width / 2 + point[1] * lateralScale, y: canvas.height - 38 - point[0] * longitudinalScale };
+}
+
+function rounded(x, y, width, height, radius, fill) {
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  ctx.roundRect(x, y, width, height, radius);
+  ctx.fill();
+}
+
+function polyline(points, offset, stroke, width, dashed = false) {
+  ctx.beginPath();
+  points.forEach((point, index) => {
+    const p = worldPoint([point[0], point[1] + offset]);
+    index ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y);
+  });
+  ctx.setLineDash(dashed ? [18, 15] : []);
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = width;
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function drawRoad() {
+  const scenario = state.data.scenario;
+  const visual = state.data.visualization;
+  const night = scenario.weather === 'night';
+  ctx.fillStyle = night ? '#040b12' : '#0d1a24';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const half = visual.road_width_m / 2;
+  const left = visual.centerline.map(point => worldPoint([point[0], point[1] - half]));
+  const right = [...visual.centerline].reverse().map(point => worldPoint([point[0], point[1] + half]));
+  ctx.beginPath();
+  [...left, ...right].forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
+  ctx.closePath();
+  ctx.fillStyle = night ? '#202a33' : '#303b45';
+  ctx.fill();
+  polyline(visual.centerline, -half, '#101820', 5);
+  polyline(visual.centerline, half, '#101820', 5);
+  [-half / 3, half / 3].forEach(offset => polyline(visual.centerline, offset, '#d8e0e777', 2, true));
+
+  const stop = visual.stop_line;
+  const stopLeft = worldPoint([stop.x, stop.center_y - half]);
+  const stopRight = worldPoint([stop.x, stop.center_y + half]);
+  ctx.strokeStyle = '#f4f7fa';
+  ctx.lineWidth = 7;
+  ctx.beginPath(); ctx.moveTo(stopLeft.x, stopLeft.y); ctx.lineTo(stopRight.x, stopRight.y); ctx.stroke();
+
+  if (visual.pedestrian.visible) {
+    for (let delta = -2; delta <= 2; delta += 1) {
+      const a = worldPoint([visual.pedestrian.x + delta * .8, visual.pedestrian.y + .5]);
+      const b = worldPoint([visual.pedestrian.x + delta * .8, visual.pedestrian.y + visual.road_width_m + .5]);
+      ctx.strokeStyle = '#e8edf1aa'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    }
+  }
+
+  const signal = worldPoint([visual.traffic_light.x, visual.traffic_light.y]);
+  rounded(signal.x - 11, signal.y - 31, 22, 62, 7, '#14212d');
+  [['red', -16, '#ff5268'], ['green', 16, '#4ee398']].forEach(([name, dy, color]) => {
+    ctx.fillStyle = scenario.traffic_light === name ? color : '#294039';
+    ctx.beginPath(); ctx.arc(signal.x, signal.y + dy, 6, 0, Math.PI * 2); ctx.fill();
+  });
+
+  if (visual.lead_vehicle.visible) {
+    const lead = worldPoint([visual.lead_vehicle.x, visual.lead_vehicle.y]);
+    drawCar(lead.x, lead.y, '#d98b37');
+    ctx.fillStyle = '#ffd69a'; ctx.font = '12px sans-serif';
+    ctx.fillText(`前车 ${visual.lead_vehicle.speed.toFixed(1)}m/s`, lead.x + 18, lead.y);
+  }
+  if (visual.pedestrian.visible) drawPedestrian(worldPoint([visual.pedestrian.x, visual.pedestrian.y]));
+
+  ctx.fillStyle = '#dcebf7'; ctx.font = '600 13px sans-serif';
+  const command = { straight: '↑ 直行', left: '↖ 左转', right: '↗ 右转' }[visual.route_command];
+  ctx.fillText(`${command} · ${scenario.weather} · 曲率 ${scenario.road_curvature.toFixed(3)}`, 20, 28);
+
+  if (scenario.weather === 'rain') drawRain();
+  if (scenario.weather === 'fog') {
+    const fog = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    fog.addColorStop(0, '#dce8ee77'); fog.addColorStop(1, '#b7c5cc12');
+    ctx.fillStyle = fog; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+}
+
+function drawRain() {
+  ctx.strokeStyle = '#76b5e477'; ctx.lineWidth = 1;
+  for (let index = 0; index < 70; index++) {
+    const x = (index * 71 + state.frame * 17) % canvas.width;
+    const y = (index * 43 + state.frame * 23) % canvas.height;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 8, y + 18); ctx.stroke();
+  }
+}
+
+function drawPedestrian(point) {
+  ctx.fillStyle = '#ffd56a';
+  ctx.beginPath(); ctx.arc(point.x, point.y - 8, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#ffd56a'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(point.x, point.y - 2); ctx.lineTo(point.x, point.y + 12);
+  ctx.moveTo(point.x, point.y + 4); ctx.lineTo(point.x - 7, point.y + 10);
+  ctx.moveTo(point.x, point.y + 4); ctx.lineTo(point.x + 7, point.y + 10); ctx.stroke();
+}
+
+function drawCar(x, y, color, angle = 0) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
+  rounded(-14, -25, 28, 50, 7, color);
+  ctx.fillStyle = '#9ed5ec'; ctx.fillRect(-9, -14, 18, 10);
+  ctx.fillStyle = '#111a22'; ctx.fillRect(-9, 10, 18, 8);
+  ctx.restore();
+}
+
+function drawTrajectory(points, color, width) {
+  ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath();
+  points.forEach((point, index) => {
+    const p = worldPoint(point);
+    index ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y);
+  });
+  ctx.stroke();
+}
+
+function draw() {
+  if (!state.data) return;
+  const selected = state.data.selected_policy;
+  const baseline = state.data.results.baseline.trajectory.points;
+  const revised = state.data.results[selected].trajectory.points;
+  drawRoad();
+  drawTrajectory(baseline, '#ff6376', 3);
+  drawTrajectory(revised, '#35d8d0', 4);
+  const index = Math.min(revised.length - 1, Math.floor(state.frame));
+  const current = worldPoint(revised[index]);
+  const next = worldPoint(revised[Math.min(index + 1, revised.length - 1)]);
+  drawCar(current.x, current.y, '#35d8d0', Math.atan2(next.y - current.y, next.x - current.x) + Math.PI / 2);
+  $('#hudSpeed').innerHTML = `${revised[index][2].toFixed(1)} <small>m/s</small>`;
+  $('#progress').style.width = `${state.frame / (revised.length - 1) * 100}%`;
+  const active = Math.min(4, Math.floor(state.frame / (revised.length - 1) * 5));
+  document.querySelectorAll('#timeline .event').forEach((event, i) => event.classList.toggle('active', i <= active));
+}
+
+function animationTick(timestamp) {
+  if (state.data && state.playing && timestamp - state.lastFrameAt > 150) {
+    const count = state.data.results[state.data.selected_policy].trajectory.points.length;
+    state.frame += .32;
+    if (state.frame >= count - 1) {
+      state.frame = count - 1;
+      state.playing = false;
+      $('#play').textContent = '▶';
+    }
+    draw();
+    state.lastFrameAt = timestamp;
+  }
+  requestAnimationFrame(animationTick);
+}
+
+function renderLogs() {
+  const box = $('#runtimeLog');
+  box.innerHTML = state.logs.length ? state.logs.map(event => {
+    const time = event.time.split('T')[1]?.slice(0, 12) || event.time;
+    const detail = Object.entries(event.details || {}).slice(0, 5).map(([key, value]) => `${key}=${Array.isArray(value) ? value.join(',') : value}`).join(' · ');
+    return `<div class="log-entry log-${escapeHtml(event.category)}"><span>${escapeHtml(time)} #${event.seq}</span><b>${escapeHtml(event.category)}</b><p>${escapeHtml(event.message)}</p><small>${escapeHtml(detail)}</small></div>`;
+  }).join('') : '<div class="empty">暂无后端事件</div>';
+  box.scrollTop = box.scrollHeight;
+  $('#logCursor').textContent = `Live · #${state.logSeq}`;
+}
+
+async function pollLogs() {
+  try {
+    const result = await api(`/api/logs?after=${state.logSeq}&limit=100`);
+    if (result.events.length) {
+      state.logs.push(...result.events);
+      state.logs = state.logs.slice(-120);
+      renderLogs();
+    }
+    state.logSeq = result.last_seq;
+  } catch (_) {
+    // A temporary polling failure must not interrupt the driving animation.
+  } finally {
+    setTimeout(pollLogs, 900);
+  }
+}
+
+sceneFields.forEach(name => form.elements[name].addEventListener('input', () => {
+  if (!state.sceneId) return;
+  state.dirty = true;
+  state.scenarioSource = 'user_control_modified';
+  $('#sceneName').textContent = `${state.sceneId} · 已修改控制参数`;
+}));
+form.onsubmit = event => { event.preventDefault(); run(); };
+$('#loadScene').onclick = () => loadSceneById($('#sceneIdInput').value).catch(error => showError(error.message));
+$('#randomScene').onclick = () => loadRandomScene().catch(error => showError(error.message));
+$('#play').onclick = () => {
+  if (!state.data) return;
+  state.playing = !state.playing;
+  const count = state.data.results[state.data.selected_policy].trajectory.points.length;
+  if (state.frame >= count - 1 && state.playing) state.frame = 0;
+  $('#play').textContent = state.playing ? 'Ⅱ' : '▶';
+};
+$('#reset').onclick = () => { state.frame = 0; state.playing = false; $('#play').textContent = '▶'; draw(); };
+
+async function boot() {
+  try {
+    const meta = await api('/api/meta');
+    const audit = meta.audit;
+    $('#checkpointPill').innerHTML = `<i></i>${audit.checkpoint_installed && audit.code_complete ? '基座文件完整' : '基座文件待补'}`;
+    await loadPresets();
+  } catch (error) {
+    showError(`初始化失败：${error.message}`);
+    $('#dataStatus').textContent = error.message;
+  }
+  pollLogs();
+  requestAnimationFrame(animationTick);
+}
+
+boot();

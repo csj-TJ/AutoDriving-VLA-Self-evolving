@@ -1,12 +1,16 @@
-# Linux/CUDA only. Install official OpenDriveVLA third_party MMCV/MMDet3D
-# according to references/repositories/OpenDriveVLA/docs/1_INSTALL.md first.
+# OpenDriveVLA-compatible minimum for this project's single-GPU LoRA/PEFT path.
+# Full execution remains Linux/CUDA only because the official customized
+# MMCV/MMDet3D extensions must be compiled from source. DeepSpeed is deliberately
+# separated because its build needs an already-installed Torch; install
+# requirements-deepspeed.txt as the second stage before live inference/training.
 torch==2.1.2
-transformers>=4.40,<4.46
-accelerate>=0.29
-deepspeed>=0.14
-peft>=0.11
+torchvision==0.16.2
+transformers @ git+https://github.com/huggingface/transformers.git@1c39974a4c4036fd641bc1191cc32799f85715a4
+tokenizers~=0.15.2
+accelerate==0.29.3
+peft==0.4.0
 safetensors>=0.4
-numpy>=1.24,<2
+numpy==1.26.1
 scipy==1.10.1
 scikit-image==0.19.3
 mmengine==0.9.0

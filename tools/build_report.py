@@ -103,11 +103,14 @@ def add_table(doc, rows):
         trPr=table.rows[i]._tr.get_or_add_trPr(); cant=OxmlElement("w:cantSplit"); trPr.append(cant)
         for j,text in enumerate(row):
             text = text.replace("`", "")
-            c=table.cell(i,j); c.text=""; p=c.paragraphs[0]; p.paragraph_format.space_after=Pt(2); p.paragraph_format.line_spacing=1.05
+            c=table.cell(i,j); c.text=""; p=c.paragraphs[0]
+            p.paragraph_format.space_after=Pt(0 if cols == 3 else 2)
+            p.paragraph_format.line_spacing=1.0 if cols == 3 else 1.05
             if i == 0: p.paragraph_format.keep_with_next = True
             align_center = i == 0 or (cols >= 5 and j > 0) or j == cols-1
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER if align_center else WD_ALIGN_PARAGRAPH.LEFT
-            r=p.add_run(text); font(r,"微软雅黑" if i==0 else "宋体",8.2 if cols>=5 else 9.0,bold=i==0,color=DARK if i==0 else None)
+            body_size = 8.2 if cols >= 5 else (8.5 if cols == 3 else 9.0)
+            r=p.add_run(text); font(r,"微软雅黑" if i==0 else "宋体",body_size,bold=i==0,color=DARK if i==0 else None)
             if i==0: shade(c,LIGHT)
     # repeat header
     trPr=table.rows[0]._tr.get_or_add_trPr(); h=OxmlElement("w:tblHeader"); h.set(qn("w:val"),"true"); trPr.append(h)

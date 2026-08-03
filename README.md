@@ -1,18 +1,23 @@
 # 基于 Driving Reflection 与 Critic 反馈的自动驾驶 VLA 自进化
 
+> Windows 运行 Demo 请只安装 `requirements.txt`；下载/审计基座另装
+> `requirements-model.txt`。`requirements-gpu.txt` 面向 Linux/CUDA 的 OpenDriveVLA
+> PEFT 环境，DeepSpeed 分布式训练依赖已单独放在 `requirements-deepspeed.txt`。
+
 本项目是课程选题第 4 题的可复现轻量实现。它把自动驾驶失败经验转换为结构化训练知识，完整覆盖 `Trajectory → Critic → Reflection → Re-learning`，并提供 Rule-based、LLM Critic（在线接口/离线确定性代理）和 Reward Model 三种评价方式。
 
-## 一键复现
+## 克隆后直接运行 Demo
 
 ```powershell
-$py = 'C:\Users\Administrator\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
-& $py scripts\run_all.py --samples 5000
-& $py scripts\run_demo.py
+python -m pip install -r requirements.txt
+python scripts/run_demo.py
 ```
 
-浏览器打开 `http://127.0.0.1:8000`。仅快速验证时可用 `--samples 200`。
+浏览器打开 `http://127.0.0.1:8000`。仓库已包含 Demo 使用的 5,000 条
+`data/reflection_dataset.jsonl`，无需先生成数据。需要从头复现实验时运行
+`python scripts/run_all.py --samples 5000`；仅快速验证流水线时可用 `--samples 200`。
 
-Windows 也可直接双击 `启动Demo.bat`。新版驾驶台提供红灯、行人、慢速前车和雨夜弯道预设，同屏动态比较 Baseline 与反思后轨迹，并展示 Critic 证据、结构化 Reflection 和五阶段决策时间线。详细操作见 `docs/Demo使用说明.md`。
+Windows 也可直接双击 `启动Demo.bat`。新版驾驶台从完整训练数据索引动态选择红灯、行人、慢速前车和恶劣弯道场景，同屏比较 Baseline 与反思后轨迹，并展示模型调用、数据近邻、Critic 评分、结构化 Reflection 和后端实时日志。详细操作见 `docs/Demo使用说明.md`。
 
 ## 基座模型与轻量化结论
 
@@ -28,7 +33,10 @@ Windows 也可直接双击 `启动Demo.bat`。新版驾驶台提供红灯、行�
 - 实验评估：`scripts/evaluate.py` 输出碰撞风险、违章、礼让失败、舒适性与策略误差，并标记未见场景测试集。
 - Demo：`demo/index.html` + `demo/styles.css` + `demo/app.js` + `scripts/run_demo.py`，通过 Python API 动态生成双轨迹、Critic、Reflection 与自进化历史。
 - 基座查验与适配：`scripts/audit_opendrivevla.py` 检查本地资产，`scripts/import_opendrivevla_outputs.py` 将官方 `plan_conv.json` 转为 Demo 可回放缓存。
-- 完整报告：见 `report/`；参考论文与源码的本地情况见 `references/REFERENCE_MANIFEST.md`。
+- 完整报告：主交付为 `report/自动驾驶VLA自进化研究报告.tex` 与同名 PDF；内容源为
+  `report/项目报告.md`。安装 MiKTeX 或 TeX Live（含 XeLaTeX）后运行
+  `python tools/build_report_latex.py --compile` 可重新生成 LaTeX 与 PDF。参考论文与源码的
+  本地情况见 `references/REFERENCE_MANIFEST.md`。
 - GitHub 协作、基座依赖、数据集目录和 GPU 环境说明：见 `docs/GitHub协作与环境配置.md`。
 
 ## 重要边界

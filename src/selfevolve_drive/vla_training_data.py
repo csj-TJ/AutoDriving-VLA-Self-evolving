@@ -73,10 +73,10 @@ def export_training_sets(records: list[dict], model_dir: Path, output_dir: Path)
                 handle.write(json.dumps(row, ensure_ascii=False) + "\n")
     manifest = {
         "base_model": "OpenDriveVLA-0.5B",
-        "initialization": str(model_dir.parent / "references" / "models" / "OpenDriveVLA-0.5B"),
-        "source_scope": "lightweight synthetic proxy; replace image_refs with nuScenes assets for full VLA training",
+        "initialization": "references/models/OpenDriveVLA-0.5B",
+        "source_scope": "lightweight simulator-backed proxy training; replace image_refs with nuScenes assets for full VLA training",
         "counts": {key: len(rows) for key, (_, rows) in outputs.items()},
-        "files": {key: str(path) for key, (path, _) in outputs.items()},
+        "files": {key: f"data/opendrivevla_training/{path.name}" for key, (path, _) in outputs.items()},
     }
     (output_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     return manifest

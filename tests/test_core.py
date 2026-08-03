@@ -2,7 +2,10 @@ import sys
 import json
 import os
 import tempfile
+import threading
 import unittest
+import urllib.request
+from http.server import ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
 
@@ -17,7 +20,7 @@ from selfevolve_drive.reflection import reflect
 from selfevolve_drive.simulator import generate_scenarios
 from selfevolve_drive.self_evolution import run_self_evolution
 from selfevolve_drive.vla_training_data import trajectory_text
-from selfevolve_drive.web_demo import compare
+from selfevolve_drive.web_demo import DATA_STORE, Handler, compare
 
 
 class CoreTests(unittest.TestCase):
@@ -100,8 +103,17 @@ class CoreTests(unittest.TestCase):
                 model.plan(scenario)
 
     def test_three_file_frontend_exists(self):
-        for name in ("index.html", "styles.css", "app.js"):
+        for name in ("index.html", "styles.css", "runtime.css", "app.js"):
             self.assertTrue((ROOT / "demo" / name).is_file())
+        self.assertNotIn("const presets=", (ROOT / "demo" / "app.js").read_text(encoding="utf-8"))
+
+    def test_demo_indexes_complete_training_file(self):
+        status = DATA_STORE.status()
+        with (ROOT / "data" / "reflection_dataset.jsonl").open(encoding="utf-8") as handle:
+            line_count = sum(1 for line in handle if line.strip())
+        self.assertEqual(status["records"], line_count)
+        self.assertTrue(status["indexed_all_valid_rows"])
+        self.assertGreaterEqual(len(DATA_STORE.presets()), 4)
 
     def test_demo_compare_returns_two_trajectories(self):
         obj = {"ego_speed": 13, "speed_limit": 13.9, "lead_distance": 32,
@@ -113,6 +125,29 @@ class CoreTests(unittest.TestCase):
         self.assertIn("baseline", result["results"])
         self.assertIn("reflection_sft", result["results"])
         self.assertEqual(len(result["events"]), 5)
+        self.assertEqual(result["results"]["reflection_sft"]["critic"]["critic_type"], "live_rule_reward_data")
+        self.assertEqual(result["provenance"]["data"]["records"], DATA_STORE.status()["records"])
+        self.assertEqual(len(result["results"]["reflection_sft"]["score_provenance"]["neighbors"]), 7)
+
+    def test_dynamic_demo_http_endpoints(self):
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        base = f"http://127.0.0.1:{server.server_port}"
+        try:
+            with urllib.request.urlopen(base + "/api/data/status") as response:
+                status = json.load(response)
+            with urllib.request.urlopen(base + "/api/scenarios/presets") as response:
+                presets = json.load(response)
+            with urllib.request.urlopen(base + "/runtime.css") as response:
+                content_type = response.headers.get_content_type()
+            self.assertEqual(status["records"], 5000)
+            self.assertEqual(len(presets["items"]), 4)
+            self.assertEqual(content_type, "text/css")
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
 
 
 if __name__ == "__main__":

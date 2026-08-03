@@ -1,0 +1,5 @@
+# OpenDriveVLA live inference/training dependency on Linux/CUDA only.
+# Install torch first, then run:
+#   DS_BUILD_OPS=0 pip install --no-build-isolation -r requirements-deepspeed.txt
+# Do not use this file for the Windows Demo/cache replay path.
+deepspeed==0.14.2

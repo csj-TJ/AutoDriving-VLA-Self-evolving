@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Driving Reflection · VLA 自进化驾驶台</title>
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/runtime.css">
 </head>
 <body>
 <div class="app">
@@ -16,10 +17,13 @@
     <aside class="panel">
       <div class="panel-title"><h2>场景控制</h2><span>Scenario Lab</span></div>
       <form class="controls" id="form">
-        <div class="scenario-tabs" id="presets">
-          <button type="button" data-preset="red" class="active">红灯路口</button><button type="button" data-preset="ped">行人横穿</button>
-          <button type="button" data-preset="lead">前车急缓</button><button type="button" data-preset="curve">雨夜弯道</button>
+        <div class="scenario-tabs" id="presets"><span class="empty">正在从训练数据读取场景…</span></div>
+        <div class="dataset-picker">
+          <label class="field">训练集 Scene ID<input id="sceneIdInput" placeholder="例如 scene-000128"></label>
+          <div class="dataset-actions"><button type="button" id="loadScene">加载指定样本</button><button type="button" id="randomScene">随机训练样本</button></div>
+          <div class="data-status" id="dataStatus">等待数据索引…</div>
         </div>
+        <input name="source_sample_id" type="hidden">
         <div class="group-label">策略与环境</div>
         <label class="field">轨迹来源<select name="runtime"><option value="auto" selected>自动（缓存→CPU回退）</option><option value="lite">CPU 机制模式</option><option value="cache">真实缓存（严格，不回退）</option></select></label>
         <label class="field">反思后策略<select name="policy"><option value="sft">SFT</option><option value="reflection_sft" selected>Reflection SFT</option><option value="reflection_dpo">Reflection DPO</option></select></label>
@@ -27,27 +31,28 @@
         <label class="field">导航<select name="route_command"><option value="straight">直行</option><option value="left">左转</option><option value="right">右转</option></select></label>
         <label class="field">信号灯<select name="traffic_light"><option value="red">红灯</option><option value="green">绿灯</option></select></label>
         <div class="group-label">车辆与道路</div>
-        <label class="field">自车速度<input name="ego_speed" type="number" value="13" step=".5"></label>
-        <label class="field">道路限速<input name="speed_limit" type="number" value="13.9" step=".1"></label>
-        <label class="field">前车距离<input name="lead_distance" type="number" value="32" step="1"></label>
-        <label class="field">前车速度<input name="lead_speed" type="number" value="7" step=".5"></label>
-        <label class="field">停止线距离<input name="stopline_distance" type="number" value="16" step="1"></label>
-        <label class="field">行人距离<input name="pedestrian_distance" type="number" value="45" step="1"></label>
-        <label class="field">道路曲率<input name="road_curvature" type="number" value=".015" step=".005"></label>
-        <button class="run" id="run">运行 Critic → Reflection → 重规划</button>
+        <label class="field">自车速度<input name="ego_speed" type="number" step=".1" required></label>
+        <label class="field">道路限速<input name="speed_limit" type="number" step=".1" required></label>
+        <label class="field">前车距离<input name="lead_distance" type="number" step=".1" required></label>
+        <label class="field">前车速度<input name="lead_speed" type="number" step=".1" required></label>
+        <label class="field">停止线距离<input name="stopline_distance" type="number" step=".1" required></label>
+        <label class="field">行人距离<input name="pedestrian_distance" type="number" step=".1" required></label>
+        <label class="field">道路曲率<input name="road_curvature" type="number" step=".001" required></label>
+        <button class="run" id="run" disabled>加载数据后运行</button>
         <div class="model-card" id="model"><strong>完整实验必需：OpenDriveVLA-0.5B</strong>正在读取运行信息…</div>
       </form>
     </aside>
 
     <main class="panel stage">
-      <div class="hud"><div class="hud-box"><span>自车速度</span><b id="hudSpeed">0.0 <small>m/s</small></b></div><div class="hud-box legend"><em><i class="dot" style="background:#ff6376"></i>Baseline</em><em><i class="dot" style="background:#35d8d0"></i>反思后</em></div></div>
+      <div class="hud"><div class="hud-box"><span>自车速度</span><b id="hudSpeed">0.0 <small>m/s</small></b></div><div class="hud-box scene-name"><span>当前数据场景</span><b id="sceneName">等待加载</b></div><div class="hud-box legend"><em><i class="dot" style="background:#ff6376"></i>Baseline</em><em><i class="dot" style="background:#35d8d0"></i>反思后</em></div></div>
       <div class="canvas-wrap"><canvas id="scene" width="880" height="510" aria-label="俯视道路及双策略轨迹动画"></canvas></div>
       <div class="playback"><button class="iconbtn" id="play" type="button" aria-label="播放或暂停">▶</button><button class="iconbtn" id="reset" type="button" aria-label="重置">↺</button><div class="progress"><i id="progress"></i></div><span class="speed">6.0 s 预测窗口</span></div>
       <div class="compare-strip"><article class="policy-card"><header><h3 style="color:#ff8795">初始 Baseline</h3><strong id="baseOverall">--</strong></header><div class="metric"><span>目标速度</span><b id="baseTarget">--</b></div><div class="metric"><span>失败项</span><b id="baseFailures">--</b></div></article><article class="policy-card"><header><h3 style="color:#6df0e7">反思后策略</h3><strong id="newOverall">--</strong></header><div class="metric"><span>目标速度</span><b id="newTarget">--</b></div><div class="metric"><span>决策变化</span><b id="decision">--</b></div></article></div>
     </main>
 
     <section class="right">
-      <article class="panel"><div class="panel-title"><h2>Critic 评分</h2><span>Selected policy</span></div><div class="score-grid" id="scores"></div><div class="delta">相对 Baseline：<strong id="delta">等待运行</strong></div></article>
+      <article class="panel"><div class="panel-title"><h2>Critic 评分</h2><span>Live model + data</span></div><div class="score-grid" id="scores"></div><div class="delta">相对 Baseline：<strong id="delta">等待运行</strong></div><div class="score-source" id="scoreSource">等待实时评分来源…</div></article>
+      <article class="panel log-panel"><div class="panel-title"><h2>后端实时日志</h2><span id="logCursor">Live · #0</span></div><div class="runtime-log" id="runtimeLog"><div class="empty">等待数据、模型与 Critic 调用…</div></div></article>
       <article class="panel"><div class="panel-title"><h2>自进化训练</h2><span>Failure replay</span></div><div class="timeline" id="evolution"><div class="empty">正在读取训练轮次…</div></div></article>
       <article class="panel"><div class="panel-title"><h2>闭环事件</h2><span>Live trace</span></div><div class="timeline" id="timeline"><div class="empty">运行场景后显示完整决策链。</div></div></article>
       <article class="panel"><div class="panel-title"><h2>Driving Reflection</h2><span>Structured</span></div><div class="reflection" id="reflection"><span class="verdict">等待 Critic</span><p class="empty">这里将展示失败根因、可核验证据、纠正策略与反事实动作。</p></div></article>

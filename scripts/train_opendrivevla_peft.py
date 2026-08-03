@@ -12,6 +12,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def environment_status() -> dict:
+    # The loop below does not call DeepSpeed directly, but the official
+    # OpenDriveVLA model/vision code imports it while loading the base model.
     modules = ("torch", "transformers", "peft", "deepspeed", "mmcv", "mmdet3d")
     status = {name: importlib.util.find_spec(name) is not None for name in modules}
     cuda = False

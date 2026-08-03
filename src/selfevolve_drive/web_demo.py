@@ -1,19 +1,22 @@
 from __future__ import annotations
 
 import json
+import time
+import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from .base_models import audit_opendrivevla, create_base_model
-from .critics import RuleBasedCritic
+from .demo_runtime import EVENT_LOG, LiveDataCritic, TrainingDataStore
 from .reflection import reflect
 from .schema import Scenario
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
-CRITIC = RuleBasedCritic({"safety": .45, "rule": .35, "comfort": .20})
+DATA_STORE = TrainingDataStore(ROOT / "data" / "reflection_dataset.jsonl")
+CRITIC = LiveDataCritic(ROOT, DATA_STORE)
 
 
 def evolution_history() -> list[dict]:
@@ -34,28 +37,92 @@ def _scenario(obj: dict) -> Scenario:
         traffic_light=obj["traffic_light"], stopline_distance=float(obj["stopline_distance"]),
         pedestrian_distance=float(obj["pedestrian_distance"]), road_curvature=float(obj["road_curvature"]),
         route_command=obj["route_command"], weather=obj["weather"],
+        unseen=bool(obj.get("unseen", False)),
     )
+
+
+def _visualization(s: Scenario) -> dict:
+    def center_y(x: float) -> float:
+        return s.road_curvature * (max(0.0, x) ** 1.45) * .12
+
+    horizon = max(70.0, s.stopline_distance + 15.0, min(s.lead_distance + 15.0, 100.0))
+    centerline = [[round(x, 3), round(center_y(x), 3)] for x in
+                  [i * horizon / 35 for i in range(36)]]
+    payload = {
+        "world_horizon_m": horizon,
+        "road_width_m": 10.5,
+        "lane_count": 3,
+        "centerline": centerline,
+        "stop_line": {"x": s.stopline_distance, "center_y": center_y(s.stopline_distance)},
+        "lead_vehicle": {"x": s.lead_distance, "y": center_y(s.lead_distance),
+                         "speed": s.lead_speed, "visible": s.lead_distance <= horizon},
+        "pedestrian": {"x": s.pedestrian_distance, "y": center_y(s.pedestrian_distance) - 5.8,
+                       "visible": s.pedestrian_distance <= horizon},
+        "traffic_light": {"state": s.traffic_light, "x": s.stopline_distance,
+                          "y": center_y(s.stopline_distance) + 6.5},
+        "route_command": s.route_command,
+        "weather": s.weather,
+    }
+    return payload
+
+
+def _run_policy(s: Scenario, name: str, runtime: str, request_id: str) -> tuple[dict, dict]:
+    model = create_base_model(ROOT, name, runtime)
+    started = time.perf_counter()
+    trajectory = model.plan(s)
+    model_meta = model.metadata()
+    model_latency = round((time.perf_counter() - started) * 1000, 2)
+    EVENT_LOG.emit(
+        "model_call", "规划模型调用完成", request_id=request_id, scene_id=s.scene_id,
+        policy=name, requested_runtime=runtime, actual_runtime=model_meta.get("runtime_mode"),
+        weights_loaded=model_meta.get("weights_loaded"), latency_ms=model_latency,
+    )
+    critic, score_source = CRITIC.evaluate(s, trajectory)
+    EVENT_LOG.emit(
+        "critic_call", "Critic 实时评分完成", request_id=request_id, scene_id=s.scene_id,
+        policy=name, critic_type=critic.critic_type, overall=critic.overall_score,
+        training_neighbors=[item["sample_id"] for item in score_source["neighbors"]],
+        latency_ms=score_source["latency_ms"],
+    )
+    reflection = reflect(s, trajectory, critic)
+    EVENT_LOG.emit(
+        "reflection", "结构化反思完成", request_id=request_id, policy=name,
+        verdict=reflection.verdict, failures=critic.failures,
+    )
+    return {
+        "trajectory": trajectory.to_dict(), "critic": critic.to_dict(),
+        "reflection": reflection.to_dict(), "model": model_meta,
+        "score_provenance": score_source,
+    }, {"model_latency_ms": model_latency, "actual_runtime": model_meta.get("runtime_mode")}
 
 
 def infer(obj: dict) -> dict:
     s = _scenario(obj)
-    model = create_base_model(ROOT, obj.get("policy", "reflection_sft"), obj.get("runtime", "auto"))
-    t = model.plan(s)
-    c = CRITIC.evaluate(s, t)
-    r = reflect(s, t, c)
-    return {"scenario": s.to_dict(), "trajectory": t.to_dict(), "critic": c.to_dict(), "reflection": r.to_dict(), "model": model.metadata()}
+    request_id = str(obj.get("request_id") or uuid.uuid4().hex[:12])
+    policy = obj.get("policy", "reflection_sft")
+    result, timing = _run_policy(s, policy, obj.get("runtime", "auto"), request_id)
+    payload = {
+        "request_id": request_id, "scenario": s.to_dict(), "visualization": _visualization(s),
+        **result, "provenance": {"scenario_source": obj.get("scenario_source", "user_control"),
+                                "source_sample_id": obj.get("source_sample_id"),
+                                "data": DATA_STORE.status(), "timing": timing},
+    }
+    return payload
 
 
 def compare(obj: dict) -> dict:
     s = _scenario(obj)
+    request_id = str(obj.get("request_id") or uuid.uuid4().hex[:12])
+    runtime = obj.get("runtime", "auto")
+    EVENT_LOG.emit(
+        "request", "开始双策略实时评估", request_id=request_id, scene_id=s.scene_id,
+        scenario_source=obj.get("scenario_source", "user_control"),
+        source_sample_id=obj.get("source_sample_id"), requested_runtime=runtime,
+    )
     results = {}
-    models = {}
+    timings = {}
     for name in ("baseline", obj.get("policy", "reflection_sft")):
-        model = create_base_model(ROOT, name, obj.get("runtime", "auto"))
-        t = model.plan(s)
-        c = CRITIC.evaluate(s, t)
-        results[name] = {"trajectory": t.to_dict(), "critic": c.to_dict(), "reflection": reflect(s, t, c).to_dict(), "model": model.metadata()}
-        models[name] = model
+        results[name], timings[name] = _run_policy(s, name, runtime, request_id)
     selected = obj.get("policy", "reflection_sft")
     base_score = results["baseline"]["critic"]["overall_score"]
     improved_score = results[selected]["critic"]["overall_score"]
@@ -67,20 +134,62 @@ def compare(obj: dict) -> dict:
         {"phase": "反思", "detail": "；".join(results["baseline"]["reflection"]["corrective_strategy"]) or "保持当前安全策略"},
         {"phase": "重规划", "detail": f"{selected} 目标速度 {results[selected]['trajectory']['target_speed']:.1f} m/s，综合分变化 {improved_score-base_score:+.1f}"},
     ]
-    return {
-        "scenario": s.to_dict(), "results": results, "selected_policy": selected,
+    payload = {
+        "request_id": request_id, "scenario": s.to_dict(), "visualization": _visualization(s),
+        "results": results, "selected_policy": selected,
         "events": events, "failure_count": len(failures),
         "delta": {"overall": round(improved_score - base_score, 3), "target_speed": round(results[selected]["trajectory"]["target_speed"] - results["baseline"]["trajectory"]["target_speed"], 3)},
-        "model": models[selected].metadata(),
+        "model": results[selected]["model"],
         "evolution_history": evolution_history(),
+        "provenance": {
+            "scenario_source": obj.get("scenario_source", "user_control"),
+            "source_sample_id": obj.get("source_sample_id"),
+            "data": DATA_STORE.status(), "timing": timings,
+            "score_formula": "65% fresh rule + 25% trained reward critic + 10% full-dataset kNN prior",
+        },
     }
+    EVENT_LOG.emit(
+        "request_complete", "双策略评估已返回", request_id=request_id, scene_id=s.scene_id,
+        selected_policy=selected, score_delta=payload["delta"]["overall"],
+    )
+    return payload
 
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
+        query = parse_qs(parsed.query)
+        if path == "/api/logs":
+            self._json(EVENT_LOG.read(
+                after=int(query.get("after", [0])[0]), limit=int(query.get("limit", [200])[0])))
+            return
+        if path == "/api/data/status":
+            self._json(DATA_STORE.status())
+            return
+        if path == "/api/scenarios/presets":
+            presets = DATA_STORE.presets()
+            self._json({"items": presets, "data": DATA_STORE.status()})
+            return
+        if path == "/api/scenarios":
+            self._json(DATA_STORE.page(
+                offset=int(query.get("offset", [0])[0]), limit=int(query.get("limit", [50])[0]),
+                query=query.get("query", [""])[0]))
+            return
+        if path == "/api/scenario":
+            scene_id = query.get("id", [""])[0]
+            row = DATA_STORE.get(scene_id)
+            scenario = _scenario(row["scenario"])
+            EVENT_LOG.emit("data_select", "从训练数据加载场景", scene_id=scene_id,
+                           sample_id=row.get("sample_id"), split=row.get("split"))
+            self._json({"sample_id": row.get("sample_id"), "scene_id": scene_id,
+                        "scenario": scenario.to_dict(), "visualization": _visualization(scenario),
+                        "stored_critic": row.get("critic"), "split": row.get("split")})
+            return
         if path == "/api/meta":
-            self._json({"model": create_base_model(ROOT).metadata(), "audit": audit_opendrivevla(ROOT), "evolution_history": evolution_history(), "policies": ["sft", "reflection_sft", "reflection_dpo"]})
+            self._json({"model": create_base_model(ROOT).metadata(), "audit": audit_opendrivevla(ROOT),
+                        "data": DATA_STORE.status(), "evolution_history": evolution_history(),
+                        "policies": ["sft", "reflection_sft", "reflection_dpo"]})
             return
         if path == "/api/audit":
             self._json(audit_opendrivevla(ROOT))
@@ -111,6 +220,7 @@ class Handler(BaseHTTPRequestHandler):
             "/": ("index.html", "text/html; charset=utf-8"),
             "/index.html": ("index.html", "text/html; charset=utf-8"),
             "/styles.css": ("styles.css", "text/css; charset=utf-8"),
+            "/runtime.css": ("runtime.css", "text/css; charset=utf-8"),
             "/app.js": ("app.js", "text/javascript; charset=utf-8"),
         }
         if path not in static_files:
@@ -128,6 +238,7 @@ class Handler(BaseHTTPRequestHandler):
             size = int(self.headers.get("Content-Length", "0")); obj = json.loads(self.rfile.read(size))
             self._json(compare(obj) if path == "/api/compare" else infer(obj))
         except Exception as exc:
+            EVENT_LOG.emit("error", "API 调用失败", path=path, error=str(exc))
             self._json({"error": str(exc)}, status=400)
 
     def _json(self, obj: dict, status: int = 200):

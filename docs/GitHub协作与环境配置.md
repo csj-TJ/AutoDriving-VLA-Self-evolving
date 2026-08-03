@@ -1,13 +1,41 @@
 # GitHub 协作与环境配置
 
+## 0. Windows 与 Linux 依赖边界
+
+Windows 本地 Demo、模型文件审计和训练数据准备只安装：
+
+```powershell
+python -m pip install -r requirements.txt
+python -m pip install -r requirements-model.txt
+```
+
+不要在 Windows 上执行 `pip install -r requirements-gpu.txt` 来尝试搭建完整
+OpenDriveVLA 训练环境。官方定制 MMCV/MMDet3D 需要 Linux、CUDA 和编译工具链。
+
+`requirements-gpu.txt` 是本项目 OpenDriveVLA LoRA/PEFT 的兼容版本清单，其版本已与
+OpenDriveVLA 官方 `pyproject.toml` 对齐。DeepSpeed 已移至独立的
+`requirements-deepspeed.txt`，因为它的构建必须发生在 Torch 安装之后。官方推理入口
+也会导入 DeepSpeed，因此实时推理与训练都应在 Linux/CUDA 中分阶段安装：
+
+```bash
+pip install torch==2.1.2 torchvision==0.16.2 --index-url https://download.pytorch.org/whl/cu118
+DS_BUILD_OPS=0 pip install --no-build-isolation -r requirements-deepspeed.txt
+pip install -r requirements-gpu.txt
+```
+
+如果此前出现 `Unable to pre-compile ops without torch installed`，原因是 pip 的隔离
+构建环境在解析 DeepSpeed 时看不到尚未安装的 Torch；不能依靠同一个 requirements
+文件中的排列顺序解决。
+
 ## 1. 仓库内容边界
 
-GitHub 主分支保存项目源码、配置、测试、使用文档、轻量模型参数、指标摘要和报告。以下内容不提交：
+GitHub 主分支保存项目源码、配置、测试、使用文档、轻量模型参数、指标摘要、报告，以及
+LiteVLA Demo 直接运行所需的 `data/reflection_dataset.jsonl`（5,000 条）。以下内容不提交：
 
 - OpenDriveVLA-0.5B 权重和 tokenizer 大文件；
 - OpenDriveVLA 官方源码的本地副本与定制 OpenMMLab 依赖；
 - nuScenes、CAN bus、地图、UniAD info 和评估 GT；
-- 5K JSONL、SFT/Reflection SFT/DPO 全量生成数据和反思记忆；
+- OpenDriveVLA SFT/Reflection SFT/DPO 训练导出 JSONL 和反思记忆；
 - Hugging Face token、API key、`.env` 与本地 QA 文件。
 
 ## 2. 克隆后最快运行方式
@@ -16,11 +44,23 @@ GitHub 主分支保存项目源码、配置、测试、使用文档、轻量模�
 
 ```powershell
 python -m pip install -r requirements.txt
-python scripts/run_all.py --samples 5000
 python scripts/run_demo.py
 ```
 
-访问 `http://127.0.0.1:8000`。前端由 `demo/index.html`、`demo/styles.css`、`demo/app.js` 组成，通过 `/api/compare`、`/api/meta`、`/api/model/status` 和 `/api/evolution` 调用 Python 后端。协作者也可调用 `POST /api/model/plan` 作为统一规划入口，其请求体与 `/api/evaluate` 相同。
+访问 `http://127.0.0.1:8000`。主分支已包含完整 5,000 条 LiteVLA Demo JSONL，
+不需要先执行数据生成。前端由 `demo/index.html`、CSS 文件和 `demo/app.js` 组成，
+本身不保存固定场景、规划轨迹或评分。场景来自完整训练数据索引，规划与评分由 Python API 实时返回。
+
+主要接口：
+
+- `GET /api/data/status`：完整 JSONL 索引状态、记录数与数据划分；
+- `GET /api/scenarios/presets`：从训练数据动态匹配四类演示场景；
+- `GET /api/scenarios?offset=0&limit=50`：分页访问训练场景；
+- `GET /api/scenario?id=scene-000000`：加载指定场景；
+- `GET /api/logs?after=0`：增量读取数据、模型、Critic 和 Reflection 日志；
+- `POST /api/compare`：Baseline 与反思策略实时对比；
+- `POST /api/model/plan`：统一规划入口，请求体与 `/api/evaluate` 相同；
+- `GET /api/model/status`：checkpoint、代码、依赖和缓存状态。
 
 `/api/model/plan` 的 `runtime` 可取 `auto`、`cache` 或 `lite`。其中 `cache` 是严格模式：找不到由真实 OpenDriveVLA 推理导入的匹配轨迹时返回错误，不会静默生成 LiteVLA 结果；只有 `auto` 允许在无缓存时退回 CPU 轻量基座。
 
@@ -128,7 +168,8 @@ python scripts/import_opendrivevla_outputs.py `
 
 ## 7. 协作规范
 
-- 不提交 token、权重、数据集和生成 JSONL；
+- 不提交 token、基座权重、真实数据集或未审核的训练导出；LiteVLA Demo 的
+  `data/reflection_dataset.jsonl` 是明确纳入主分支的运行资产；
 - 修改 schema 或 API 时同步更新测试和 `docs/Demo使用说明.md`；
 - 提交前运行 `python -m unittest discover -s tests -v`；
 - 运行 `python scripts/audit_opendrivevla.py` 核对本地模型状态；

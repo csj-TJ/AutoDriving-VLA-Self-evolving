@@ -3,6 +3,12 @@
 .research/
 __pycache__/
 *.py[cod]
+*.log
+*.aux
+*.out
+*.toc
+*.synctex.gz
+~$*.docx
 .venv/
 .idea/
 .vscode/
@@ -22,6 +28,7 @@ references/papers/*.pdf
 
 # Generated datasets and model outputs
 data/*.jsonl
+!data/reflection_dataset.jsonl
 data/opendrivevla_training/*.jsonl
 outputs/*.jsonl
 outputs/opendrivevla/
