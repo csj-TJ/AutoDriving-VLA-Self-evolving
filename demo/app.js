@@ -3,6 +3,15 @@ const form = $('#form');
 const canvas = $('#scene');
 const ctx = canvas.getContext('2d');
 const numericFields = ['ego_speed', 'speed_limit', 'lead_distance', 'lead_speed', 'stopline_distance', 'pedestrian_distance', 'road_curvature'];
+const numericFieldLabels = {
+  ego_speed: '自车速度',
+  speed_limit: '道路限速',
+  lead_distance: '前车距离',
+  lead_speed: '前车速度',
+  stopline_distance: '停止线距离',
+  pedestrian_distance: '行人距离',
+  road_curvature: '道路曲率',
+};
 const sceneFields = [...numericFields, 'weather', 'route_command', 'traffic_light'];
 
 const state = {
@@ -62,7 +71,7 @@ function applyScenario(scenario, sampleId = '', source = 'training_dataset', run
   $('#sceneName').textContent = `${scenario.scene_id}${sampleId ? ` · ${sampleId}` : ''}`;
   setCameraPreview(cameraUrl);
   $('#run').disabled = false;
-  $('#run').textContent = '运行 Critic → Reflection → 重规划';
+  $('#run').textContent = '运行本轮分析';
   if (runNow) run();
 }
 
@@ -73,6 +82,19 @@ function formPayload() {
   payload.scenario_source = state.dirty ? 'user_control_modified' : state.scenarioSource;
   payload.source_sample_id = state.sampleId || null;
   return payload;
+}
+
+function validateNumericFields() {
+  for (const key of numericFields) {
+    const input = form.elements[key];
+    const raw = input.value.trim();
+    if (raw === '' || !Number.isFinite(Number(raw))) {
+      input.focus();
+      showError(`${numericFieldLabels[key]}请输入有效数字`);
+      return false;
+    }
+  }
+  return true;
 }
 
 async function loadSceneById(sceneId) {
@@ -108,9 +130,10 @@ async function loadPresets() {
 }
 
 async function run() {
+  if (!validateNumericFields()) return;
   const button = $('#run');
   button.disabled = true;
-  button.textContent = '模型规划与数据评分中…';
+  button.textContent = '正在规划、诊断与重规划…';
   try {
     const result = await api('/api/compare', {
       method: 'POST',
@@ -126,7 +149,7 @@ async function run() {
     showError(error.message);
   } finally {
     button.disabled = false;
-    button.textContent = '运行 Critic → Reflection → 重规划';
+    button.textContent = '运行本轮分析';
   }
 }
 
@@ -183,6 +206,7 @@ function renderSkill(skill) {
   $('#skillId').textContent = skill.skill_id;
   $('#skillCamera').src = state.cameraImageUrl || '';
   $('#skillCamera').classList.toggle('visible', Boolean(state.cameraImageUrl));
+  $('#skillCamera').onerror = () => $('#skillCamera').classList.remove('visible');
   const evidence = skill.evidence_source;
   const token = evidence.annotation_token || evidence.sample_token || '交互参数场景';
   $('#skillSource').textContent = `${evidence.dataset} · ${evidence.camera_count || 0} 路相机 · 证据 ${token}`;

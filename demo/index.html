@@ -3,73 +3,172 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Driving Reflection · VLA 自进化驾驶台</title>
+  <title>Driving Reflection · 推理时反思驾驶台</title>
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/runtime.css">
 </head>
 <body>
-<div class="app">
-  <div class="topbar">
-    <div class="brand"><div class="logo">DR</div><div><h1>Driving Reflection · VLA 自进化驾驶台</h1><p>同一场景对比初始规划、Critic 诊断与反思重规划</p></div></div>
-    <div class="status"><span class="pill"><i></i>动态后端已连接</span><span class="pill" id="checkpointPill"><i></i>检查基座文件</span><span class="pill warn" id="runtimePill"><i></i>检查运行模式</span></div>
-  </div>
-  <div class="layout">
-    <aside class="panel">
-      <div class="panel-title"><h2>场景控制</h2><span>Scenario Lab</span></div>
-      <form class="controls" id="form">
-        <div class="scenario-tabs" id="presets"><span class="empty">正在从训练数据读取场景…</span></div>
-        <div class="dataset-picker">
-          <label class="field">训练集 Scene ID<input id="sceneIdInput" placeholder="例如 scene-000128"></label>
-          <div class="dataset-actions"><button type="button" id="loadScene">加载指定样本</button><button type="button" id="randomScene">随机训练样本</button></div>
-          <div class="data-status" id="dataStatus">等待数据索引…</div>
-        </div>
-        <input name="source_sample_id" type="hidden">
-        <div class="group-label">策略与环境</div>
-        <label class="field">轨迹来源<select name="runtime"><option value="auto" selected>自动（缓存→CPU回退）</option><option value="lite">CPU 机制模式</option><option value="cache">真实缓存（严格，不回退）</option></select></label>
-        <label class="field">反思后策略<select name="policy"><option value="sft">SFT</option><option value="reflection_sft" selected>Reflection SFT</option><option value="reflection_dpo">Reflection DPO</option></select></label>
-        <label class="field">天气<select name="weather"><option value="clear">晴朗</option><option value="rain">雨天</option><option value="fog">雾天</option><option value="night">夜间</option></select></label>
-        <label class="field">导航<select name="route_command"><option value="straight">直行</option><option value="left">左转</option><option value="right">右转</option></select></label>
-        <label class="field">信号灯<select name="traffic_light"><option value="red">红灯</option><option value="green">绿灯</option></select></label>
-        <div class="group-label">车辆与道路</div>
-        <label class="field">自车速度<input name="ego_speed" type="number" step=".1" required></label>
-        <label class="field">道路限速<input name="speed_limit" type="number" step=".1" required></label>
-        <label class="field">前车距离<input name="lead_distance" type="number" step=".1" required></label>
-        <label class="field">前车速度<input name="lead_speed" type="number" step=".1" required></label>
-        <label class="field">停止线距离<input name="stopline_distance" type="number" step=".1" required></label>
-        <label class="field">行人距离<input name="pedestrian_distance" type="number" step=".1" required></label>
-        <label class="field">道路曲率<input name="road_curvature" type="number" step=".001" required></label>
-        <button class="run" id="run" disabled>加载数据后运行</button>
-        <div class="model-card" id="model"><strong>完整实验必需：OpenDriveVLA-0.5B</strong>正在读取运行信息…</div>
-      </form>
-    </aside>
+  <header class="global-nav">
+    <div class="nav-inner">
+      <a class="brand" href="#top" aria-label="Driving Reflection 首页">
+        <span class="logo">DR</span>
+        <span>Driving Reflection</span>
+      </a>
+      <div class="status" aria-label="系统状态">
+        <span class="pill"><i></i>后端已连接</span>
+        <span class="pill" id="checkpointPill"><i></i>检查基座</span>
+        <span class="pill warn" id="runtimePill"><i></i>检查模式</span>
+      </div>
+    </div>
+  </header>
 
-    <main class="panel stage">
-      <div class="hud"><div class="hud-box"><span>自车速度</span><b id="hudSpeed">0.0 <small>m/s</small></b></div><div class="hud-box scene-name"><span>当前数据场景</span><b id="sceneName">等待加载</b></div><div class="hud-box legend"><em><i class="dot" style="background:#ff6376"></i>Baseline</em><em><i class="dot" style="background:#35d8d0"></i>反思后</em></div></div>
-      <div class="canvas-wrap"><canvas id="scene" width="880" height="510" aria-label="俯视道路及双策略轨迹动画"></canvas><figure class="camera-preview" id="cameraPreview"><img id="cameraImage" alt="nuScenes CAM_FRONT 真实场景"><figcaption>nuScenes · CAM_FRONT</figcaption></figure></div>
-      <div class="playback"><button class="iconbtn" id="play" type="button" aria-label="播放或暂停">▶</button><button class="iconbtn" id="reset" type="button" aria-label="重置">↺</button><div class="progress"><i id="progress"></i></div><span class="speed">6.0 s 预测窗口</span></div>
-      <div class="compare-strip"><article class="policy-card"><header><h3 style="color:#ff8795">初始 Baseline</h3><strong id="baseOverall">--</strong></header><div class="metric"><span>目标速度</span><b id="baseTarget">--</b></div><div class="metric"><span>失败项</span><b id="baseFailures">--</b></div></article><article class="policy-card"><header><h3 style="color:#6df0e7">反思后策略</h3><strong id="newOverall">--</strong></header><div class="metric"><span>目标速度</span><b id="newTarget">--</b></div><div class="metric"><span>决策变化</span><b id="decision">--</b></div></article></div>
-    </main>
-
-    <section class="right">
-      <article class="panel skill-panel">
-        <div class="panel-title"><h2>Skill 反思自进化</h2><span id="skillStatus">等待生成</span></div>
-        <div class="skill-scene">
-          <img id="skillCamera" alt="Skill 生成所使用的 nuScenes 场景证据">
-          <div><b id="skillName">运行场景后生成驾驶 Skill</b><code id="skillId">--</code><p id="skillSource">将联合场景画面、Critic 证据和历史反思记忆。</p></div>
-        </div>
-        <div class="skill-flow" id="skillFlow" aria-label="Skill 生成流程"></div>
-        <div class="skill-detail">
-          <div><h3>触发条件</h3><div id="skillTriggers" class="skill-facts"></div></div>
-          <div><h3>Skill 动作程序</h3><ol id="skillActions" class="skill-actions"></ol></div>
-        </div>
-        <div class="skill-validation" id="skillValidation">等待同场景重规划验证…</div>
-      </article>
-      <article class="panel"><div class="panel-title"><h2>Critic 评分</h2><span>Live model + data</span></div><div class="score-grid" id="scores"></div><div class="delta">相对 Baseline：<strong id="delta">等待运行</strong></div><div class="score-source" id="scoreSource">等待实时评分来源…</div></article>
-      <article class="panel"><div class="panel-title"><h2>Skill 记忆增长</h2><span>Failure replay</span></div><div class="timeline" id="evolution"><div class="empty">正在读取历史反思记忆…</div></div></article>
-      <article class="panel"><div class="panel-title"><h2>闭环事件</h2><span>Live trace</span></div><div class="timeline" id="timeline"><div class="empty">运行场景后显示完整决策链。</div></div></article>
-      <article class="panel"><div class="panel-title"><h2>Driving Reflection</h2><span>Structured</span></div><div class="reflection" id="reflection"><span class="verdict">等待 Critic</span><p class="empty">这里将展示失败根因、可核验证据、纠正策略与反事实动作。</p></div></article>
+  <main id="top">
+    <section class="hero">
+      <span class="eyebrow">Inference-time reflection</span>
+      <h1>看见风险，重新规划。</h1>
+      <p>同一驾驶场景下，对比初始规划、Critic 诊断与反思后重规划。</p>
+      <div class="process-rail" aria-label="演示流程">
+        <div><span>01</span><b>选择场景</b><small>设置道路与交通条件</small></div>
+        <div><span>02</span><b>初始规划</b><small>Baseline 生成轨迹</small></div>
+        <div><span>03</span><b>发现问题</b><small>Critic 定位风险</small></div>
+        <div><span>04</span><b>反思重规划</b><small>对比修正后的结果</small></div>
+      </div>
     </section>
-  </div>
-</div><div class="error" id="error"></div>
-<script src="/app.js" defer></script>
-</body></html>
+
+    <section class="workspace">
+      <aside class="control-card">
+        <div class="section-heading">
+          <div><span>01</span><h2>场景设置</h2></div>
+          <p>选一个预设场景，或调整关键参数。</p>
+        </div>
+        <form class="controls" id="form" novalidate>
+          <div class="scenario-tabs" id="presets"><span class="empty">正在读取场景…</span></div>
+
+          <div class="dataset-picker">
+            <label class="field field-stack">训练集 Scene ID<input id="sceneIdInput" placeholder="例如 scene-000128"></label>
+            <div class="dataset-actions">
+              <button type="button" id="loadScene">加载样本</button>
+              <button type="button" id="randomScene">随机一个</button>
+            </div>
+            <div class="data-status" id="dataStatus">等待数据索引…</div>
+          </div>
+
+          <input name="source_sample_id" type="hidden">
+          <div class="group-label">规划方式</div>
+          <label class="field">轨迹来源<select name="runtime"><option value="auto" selected>自动选择</option><option value="lite">CPU 机制模式</option><option value="cache">真实缓存</option></select></label>
+          <label class="field">反思后策略<select name="policy"><option value="sft">SFT</option><option value="reflection_sft" selected>Reflection SFT</option><option value="reflection_dpo">Reflection DPO</option></select></label>
+
+          <div class="group-label">环境条件</div>
+          <div class="compact-fields">
+            <label class="field field-stack">天气<select name="weather"><option value="clear">晴朗</option><option value="rain">雨天</option><option value="fog">雾天</option><option value="night">夜间</option></select></label>
+            <label class="field field-stack">导航<select name="route_command"><option value="straight">直行</option><option value="left">左转</option><option value="right">右转</option></select></label>
+            <label class="field field-stack">信号灯<select name="traffic_light"><option value="red">红灯</option><option value="green">绿灯</option></select></label>
+          </div>
+
+          <details class="parameter-details" open>
+            <summary>调整车辆与道路参数</summary>
+            <div class="parameter-grid">
+              <label class="field field-stack">自车速度<input name="ego_speed" type="number" step=".1" required></label>
+              <label class="field field-stack">道路限速<input name="speed_limit" type="number" step=".1" required></label>
+              <label class="field field-stack">前车距离<input name="lead_distance" type="number" step=".1" required></label>
+              <label class="field field-stack">前车速度<input name="lead_speed" type="number" step=".1" required></label>
+              <label class="field field-stack">停止线距离<input name="stopline_distance" type="number" step=".1" required></label>
+              <label class="field field-stack">行人距离<input name="pedestrian_distance" type="number" step=".1" required></label>
+              <label class="field field-stack">道路曲率<input name="road_curvature" type="number" step=".001" required></label>
+            </div>
+          </details>
+
+          <button class="run" id="run" disabled>加载数据后运行</button>
+
+          <details class="model-details">
+            <summary>查看模型与数据来源</summary>
+            <div class="model-card" id="model"><strong>完整实验必需：OpenDriveVLA-0.5B</strong>正在读取运行信息…</div>
+          </details>
+        </form>
+      </aside>
+
+      <section class="stage-column">
+        <div class="section-heading stage-heading">
+          <div><span>02</span><h2>轨迹对比</h2></div>
+          <p>播放六秒预测窗口，观察初始规划与反思后轨迹。</p>
+        </div>
+        <article class="stage">
+          <div class="hud">
+            <div class="hud-box"><span>当前速度</span><b id="hudSpeed">0.0 <small>m/s</small></b></div>
+            <div class="hud-box scene-name"><span>当前场景</span><b id="sceneName">等待加载</b></div>
+            <div class="hud-box legend"><em><i class="dot baseline-dot"></i>Baseline</em><em><i class="dot revised-dot"></i>反思后</em></div>
+          </div>
+          <div class="canvas-wrap">
+            <canvas id="scene" width="880" height="510" aria-label="俯视道路及双策略轨迹动画"></canvas>
+            <figure class="camera-preview" id="cameraPreview"><img id="cameraImage" alt="nuScenes CAM_FRONT 真实场景"><figcaption>nuScenes · CAM_FRONT</figcaption></figure>
+          </div>
+          <div class="playback">
+            <button class="iconbtn" id="play" type="button" aria-label="播放或暂停">▶</button>
+            <button class="iconbtn secondary" id="reset" type="button" aria-label="重置">↺</button>
+            <div class="progress"><i id="progress"></i></div>
+            <span class="speed">6.0 s</span>
+          </div>
+        </article>
+
+        <div class="compare-strip">
+          <article class="policy-card baseline-card">
+            <header><div><span>初始规划</span><h3>Baseline</h3></div><strong id="baseOverall">--</strong></header>
+            <div class="metric"><span>目标速度</span><b id="baseTarget">--</b></div>
+            <div class="metric"><span>发现问题</span><b id="baseFailures">--</b></div>
+          </article>
+          <article class="policy-card revised-card">
+            <header><div><span>反思后</span><h3>修正策略</h3></div><strong id="newOverall">--</strong></header>
+            <div class="metric"><span>目标速度</span><b id="newTarget">--</b></div>
+            <div class="metric"><span>决策变化</span><b id="decision">--</b></div>
+          </article>
+        </div>
+      </section>
+
+      <aside class="result-column">
+        <div class="section-heading">
+          <div><span>03–04</span><h2>诊断与修正</h2></div>
+          <p>先看问题，再看系统如何解释和纠正。</p>
+        </div>
+
+        <article class="result-card critic-card">
+          <div class="card-title"><div><span>Critic</span><h2>本轮评价</h2></div><div class="delta">变化 <strong id="delta">等待运行</strong></div></div>
+          <div class="score-grid" id="scores"></div>
+          <details class="source-details"><summary>评分依据</summary><div class="score-source" id="scoreSource">等待实时评分来源…</div></details>
+        </article>
+
+        <article class="result-card reflection-card">
+          <div class="card-title"><div><span>Reflection</span><h2>为什么要改</h2></div></div>
+          <div class="reflection" id="reflection"><span class="verdict">等待 Critic</span><p class="empty">运行场景后，这里会用证据解释失败原因和纠正方式。</p></div>
+        </article>
+
+        <details class="result-card skill-panel">
+          <summary><span><small>Reusable experience</small><b>可复用驾驶经验</b></span><em id="skillStatus">等待生成</em></summary>
+          <div class="skill-scene">
+            <img id="skillCamera" alt="Skill 生成所使用的 nuScenes 场景证据">
+            <div><b id="skillName">运行场景后生成驾驶 Skill</b><code id="skillId">--</code><p id="skillSource">联合场景、Critic 证据与历史经验。</p></div>
+          </div>
+          <div class="skill-flow" id="skillFlow" aria-label="Skill 生成流程"></div>
+          <div class="skill-detail">
+            <div><h3>触发条件</h3><div id="skillTriggers" class="skill-facts"></div></div>
+            <div><h3>动作程序</h3><ol id="skillActions" class="skill-actions"></ol></div>
+          </div>
+          <div class="skill-validation" id="skillValidation">等待同场景重规划验证…</div>
+        </details>
+      </aside>
+    </section>
+
+    <section class="advanced-section">
+      <details>
+        <summary><span><small>Advanced details</small><b>查看完整技术过程</b></span><em>历史记忆 · 闭环事件 · 原始过程</em></summary>
+        <div class="advanced-grid">
+          <article class="plain-panel"><div class="panel-title"><h2>历史记忆</h2><span>Offline history</span></div><div class="timeline" id="evolution"><div class="empty">正在读取历史反思记忆…</div></div></article>
+          <article class="plain-panel"><div class="panel-title"><h2>闭环事件</h2><span>Live trace</span></div><div class="timeline" id="timeline"><div class="empty">运行场景后显示完整决策链。</div></div></article>
+        </div>
+      </details>
+    </section>
+  </main>
+
+  <div class="error" id="error"></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>

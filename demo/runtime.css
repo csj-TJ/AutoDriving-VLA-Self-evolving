@@ -1,59 +1,25 @@
-.dataset-picker {
-  padding: 10px;
-  border: 1px solid #263b52;
+.scenario-tabs .empty {
+  grid-column: 1 / -1;
+  min-height: 42px;
+  display: grid;
+  place-items: center;
   border-radius: 10px;
-  background: #091522;
-  margin-bottom: 12px;
+  background: var(--paper);
 }
-.dataset-picker .field { grid-template-columns: 1fr; margin-top: 0; }
-.dataset-picker .field input { margin-top: 6px; }
-.dataset-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
-.dataset-actions button {
-  border: 1px solid #2b4761;
-  background: #102337;
-  color: #b9cad9;
-  border-radius: 8px;
-  padding: 8px;
-  cursor: pointer;
+
+.run:focus-visible,
+.scenario-tabs button:focus-visible,
+.dataset-actions button:focus-visible,
+.iconbtn:focus-visible,
+details > summary:focus-visible {
+  outline: 2px solid var(--black);
+  outline-offset: 3px;
 }
-.dataset-actions button:hover { border-color: var(--cyan); color: #8ff7ee; }
-.data-status { color: #728aa0; font-size: 10px; line-height: 1.55; margin-top: 8px; }
-.data-status b { color: var(--cyan); }
-.run:disabled { opacity: .55; cursor: wait; }
-.scene-name { margin-left: auto; margin-right: 10px; max-width: 330px; }
-.scene-name b {
-  font-size: 12px;
-  margin-top: 4px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.score-source {
-  border-top: 1px solid var(--line);
-  padding: 10px 14px;
-  color: #7f95aa;
-  font-size: 10px;
-  line-height: 1.55;
-}
-.score-source b { color: #a9f0e7; }
-.camera-preview {
-  position: absolute;
-  right: 14px;
-  bottom: 14px;
-  width: min(34%, 300px);
-  margin: 0;
-  padding: 5px;
-  border: 1px solid #42617b;
-  border-radius: 10px;
-  background: #07131fea;
-  box-shadow: 0 8px 28px #0009;
-  display: none;
-}
-.camera-preview.visible { display: block; }
-.camera-preview img { display: block; width: 100%; border-radius: 6px; }
-.camera-preview figcaption { padding: 5px 3px 1px; color: #8ea7bb; font-size: 9px; }
-.right { grid-template-rows: auto auto auto 1fr; }
-.scenario-tabs .empty { grid-column: 1 / -1; padding: 8px; }
-@media (max-width: 760px) {
-  .scene-name { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+  }
 }
