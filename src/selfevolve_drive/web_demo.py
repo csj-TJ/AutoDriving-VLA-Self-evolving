@@ -43,8 +43,6 @@ def _scenario(obj: dict) -> Scenario:
 
 
 def _source_record(obj: dict) -> dict | None:
-    if obj.get("scenario_source") == "user_control_modified":
-        return None
     record_id = obj.get("source_sample_id") or obj.get("scene_id")
     if not record_id:
         return None
@@ -59,6 +57,7 @@ def _visualization(s: Scenario, source_record: dict | None = None) -> dict:
         return s.road_curvature * (max(0.0, x) ** 1.45) * .12
 
     horizon = max(70.0, s.stopline_distance + 15.0, min(s.lead_distance + 15.0, 100.0))
+    road_width = 10.5
     centerline = [[round(x, 3), round(center_y(x), 3)] for x in
                   [i * horizon / 35 for i in range(36)]]
     pedestrian_track = (
@@ -66,27 +65,45 @@ def _visualization(s: Scenario, source_record: dict | None = None) -> dict:
         if source_record else None
     )
     if pedestrian_track and pedestrian_track.get("points"):
+        original_distance = float(
+            source_record.get("scenario", {}).get("pedestrian_distance", s.pedestrian_distance)
+        )
+        distance_offset = s.pedestrian_distance - original_distance
+        adjusted_track = [
+            {
+                **point,
+                "x": round(float(point["x"]) + distance_offset, 3),
+                "y": round(float(point["y"]), 3),
+            }
+            for point in pedestrian_track["points"]
+        ]
+        distance_adjusted = abs(distance_offset) > 1e-6
         pedestrian = {
-            "visible": True, "track": pedestrian_track["points"],
-            "data_source": "nuscenes_sample_annotation",
+            "visible": any(-5.0 <= point["x"] <= horizon for point in adjusted_track),
+            "track": adjusted_track,
+            "data_source": ("nuscenes_sample_annotation_adjusted" if distance_adjusted
+                            else "nuscenes_sample_annotation"),
             "annotation_token": pedestrian_track.get("annotation_token"),
             "instance_token": pedestrian_track.get("instance_token"),
             "duration_s": pedestrian_track.get("duration_s", 0.0),
             "displacement_m": pedestrian_track.get("displacement_m", 0.0),
             "mean_speed_mps": pedestrian_track.get("mean_speed_mps", 0.0),
+            "distance_offset_m": round(distance_offset, 3),
         }
     else:
         visible = s.pedestrian_distance <= horizon
         pedestrian = {
             "visible": visible,
             "track": ([{"t": 0.0, "x": s.pedestrian_distance,
-                        "y": center_y(s.pedestrian_distance)}] if visible else []),
+                        "y": center_y(s.pedestrian_distance) - road_width / 2 - .55}]
+                      if visible else []),
             "data_source": "scenario_static" if visible else "none",
             "duration_s": 0.0, "displacement_m": 0.0, "mean_speed_mps": 0.0,
+            "distance_offset_m": 0.0,
         }
     payload = {
         "world_horizon_m": horizon,
-        "road_width_m": 10.5,
+        "road_width_m": road_width,
         "lane_count": 3,
         "centerline": centerline,
         "stop_line": {"x": s.stopline_distance, "center_y": center_y(s.stopline_distance)},

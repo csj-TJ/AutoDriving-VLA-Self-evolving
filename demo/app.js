@@ -328,7 +328,11 @@ function drawRoad() {
     drawPedestrian(worldPoint([pedestrianPoint.x, pedestrianPoint.y]),
       animationTime * Math.max(.2, visual.pedestrian.mean_speed_mps || 0));
     ctx.fillStyle = '#ffe29b'; ctx.font = '12px sans-serif';
-    const sourceLabel = visual.pedestrian.data_source === 'nuscenes_sample_annotation' ? 'nuScenes 标注' : '静态场景值';
+    const sourceLabel = {
+      nuscenes_sample_annotation: 'nuScenes 标注',
+      nuscenes_sample_annotation_adjusted: 'nuScenes 标注 · 距离已调',
+      scenario_static: '静态场景值',
+    }[visual.pedestrian.data_source] || '场景值';
     const pedestrianPixel = worldPoint([pedestrianPoint.x, pedestrianPoint.y]);
     ctx.fillText(`行人 ${visual.pedestrian.mean_speed_mps.toFixed(1)}m/s · ${sourceLabel}`,
       pedestrianPixel.x + 12, pedestrianPixel.y - 10);
