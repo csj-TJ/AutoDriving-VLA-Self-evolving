@@ -117,6 +117,13 @@ class CoreTests(unittest.TestCase):
         self.assertIn("setPointerCapture", frontend)
         self.assertIn("applyDraggedPedestrian", frontend)
         self.assertIn("canvas.addEventListener('pointerup'", frontend)
+        pointer_up = frontend.split("canvas.addEventListener('pointerup'", 1)[1].split(
+            "canvas.addEventListener('pointercancel'", 1)[0]
+        pointer_cancel = frontend.split("canvas.addEventListener('pointercancel'", 1)[1].split(
+            "canvas.addEventListener('pointerleave'", 1)[0]
+        self.assertNotIn("run();", pointer_up)
+        self.assertNotIn("run();", pointer_cancel)
+        self.assertIn("应用修改并重新分析", frontend)
         self.assertIn('name="pedestrian_x"', page)
         self.assertIn('name="pedestrian_y"', page)
         self.assertIn('id="coordinateProbe"', page)

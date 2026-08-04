@@ -26,6 +26,7 @@ const state = {
   sampleId: '',
   scenarioSource: 'training_dataset',
   dirty: false,
+  pendingAnalysis: false,
   dataTotal: 0,
   cameraImageUrl: '',
   pedestrianDrag: null,
@@ -69,6 +70,7 @@ function applyScenario(scenario, sampleId = '', source = 'training_dataset', run
   state.sampleId = sampleId;
   state.scenarioSource = source;
   state.dirty = false;
+  state.pendingAnalysis = false;
   state.pedestrianDrag = null;
   state.pedestrianHover = false;
   coordinateFields.forEach(key => { form.elements[key].value = ''; });
@@ -190,6 +192,7 @@ async function run() {
       body: JSON.stringify(formPayload()),
     });
     state.data = result;
+    state.pendingAnalysis = false;
     state.pedestrianDrag = null;
     state.pedestrianHover = false;
     canvas.classList.remove('pedestrian-hover', 'dragging-pedestrian');
@@ -202,7 +205,7 @@ async function run() {
     showError(error.message);
   } finally {
     button.disabled = false;
-    button.textContent = '运行本轮分析';
+    button.textContent = state.pendingAnalysis ? '应用修改并重新分析' : '运行本轮分析';
   }
 }
 
@@ -347,8 +350,10 @@ function pedestrianHitTest(event) {
 function markScenarioDirty() {
   if (!state.sceneId) return;
   state.dirty = true;
+  state.pendingAnalysis = true;
   state.scenarioSource = 'user_control_modified';
   $('#sceneName').textContent = `${state.sceneId} · 已修改控制参数`;
+  $('#run').textContent = '应用修改并重新分析';
 }
 
 function applyDraggedPedestrian(point) {
@@ -625,7 +630,8 @@ canvas.addEventListener('pointerup', event => {
   state.pedestrianHover = false;
   canvas.classList.remove('dragging-pedestrian', 'pedestrian-hover');
   $('#coordinateProbe').classList.remove('visible');
-  run();
+  $('#sceneName').textContent = `${state.sceneId} · 行人位置待分析`;
+  draw();
 });
 canvas.addEventListener('pointercancel', event => {
   if (state.dragPointerId !== event.pointerId) return;
@@ -633,7 +639,8 @@ canvas.addEventListener('pointercancel', event => {
   state.pedestrianHover = false;
   canvas.classList.remove('dragging-pedestrian', 'pedestrian-hover');
   $('#coordinateProbe').classList.remove('visible');
-  run();
+  $('#sceneName').textContent = `${state.sceneId} · 行人位置待分析`;
+  draw();
 });
 canvas.addEventListener('pointerleave', () => {
   if (state.dragPointerId !== null) return;
