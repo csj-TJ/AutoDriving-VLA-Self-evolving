@@ -73,8 +73,16 @@
               <label class="field field-stack">前车距离<input name="lead_distance" type="number" step=".1" required></label>
               <label class="field field-stack">前车速度<input name="lead_speed" type="number" step=".1" required></label>
               <label class="field field-stack">停止线距离<input name="stopline_distance" type="number" step=".1" required></label>
-              <label class="field field-stack">行人距离<input name="pedestrian_distance" type="number" step=".1" required></label>
               <label class="field field-stack">道路曲率<input name="road_curvature" type="number" step=".001" required></label>
+              <fieldset class="coordinate-block">
+                <legend>行人位置</legend>
+                <div class="coordinate-input-grid">
+                  <label class="field field-stack">纵向 X<input name="pedestrian_x" type="number" step=".1" inputmode="decimal" aria-describedby="coordinateHelp"></label>
+                  <label class="field field-stack">横向 Y<input name="pedestrian_y" type="number" step=".1" inputmode="decimal" aria-describedby="coordinateHelp"></label>
+                </div>
+                <label class="coordinate-distance">风险距离 <input name="pedestrian_distance" type="number" step=".001" readonly required aria-label="行人风险距离"></label>
+                <p id="coordinateHelp">X 向前 · Y− 在左 · Y＋ 在右。可在道路画面悬停取坐标。</p>
+              </fieldset>
             </div>
           </details>
 
@@ -100,6 +108,7 @@
           </div>
           <div class="canvas-wrap">
             <canvas id="scene" width="880" height="510" aria-label="俯视道路及双策略轨迹动画"></canvas>
+            <div class="coordinate-probe" id="coordinateProbe" aria-hidden="true"><i></i><output id="coordinateValue">X 0.0 · Y 0.0 m</output></div>
             <figure class="camera-preview" id="cameraPreview"><img id="cameraImage" alt="nuScenes CAM_FRONT 真实场景"><figcaption>nuScenes · CAM_FRONT</figcaption></figure>
           </div>
           <div class="playback">

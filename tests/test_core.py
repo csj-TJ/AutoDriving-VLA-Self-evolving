@@ -112,6 +112,10 @@ class CoreTests(unittest.TestCase):
         self.assertIn("trajectoryHeading", frontend)
         self.assertIn("visual.lead_vehicle.speed * animationTime", frontend)
         self.assertIn("interpolateTrack", frontend)
+        self.assertIn("canvasToWorld", frontend)
+        self.assertIn('name="pedestrian_x"', page)
+        self.assertIn('name="pedestrian_y"', page)
+        self.assertIn('id="coordinateProbe"', page)
         self.assertNotIn("smoothProgress", frontend)
         self.assertNotIn("pollLogs", frontend)
         self.assertNotIn("后端实时日志", page)
@@ -226,6 +230,33 @@ class CoreTests(unittest.TestCase):
         for original_point, modified_point in zip(original["track"], modified["track"]):
             self.assertAlmostEqual(modified_point["x"] - original_point["x"], distance_offset, places=3)
             self.assertAlmostEqual(modified_point["y"], original_point["y"], places=3)
+
+    def test_xy_pedestrian_override_moves_track_and_updates_risk_distance(self):
+        preset = next(item for item in DATA_STORE.presets() if item["key"] == "ped")
+        original_payload = {
+            **preset["scenario"], "policy": "reflection_sft", "runtime": "lite",
+            "scenario_source": "training_dataset", "source_sample_id": preset["sample_id"],
+        }
+        original = compare(original_payload)["visualization"]["pedestrian"]
+        target_x = original["track"][0]["x"] + 4.0
+        target_y = original["track"][0]["y"] - 2.5
+        result = compare({
+            **original_payload,
+            "scene_id": f"{original_payload['scene_id']}:xy-edited",
+            "scenario_source": "user_control_modified",
+            "pedestrian_x": target_x,
+            "pedestrian_y": target_y,
+        })
+        modified = result["visualization"]["pedestrian"]
+
+        self.assertAlmostEqual(result["scenario"]["pedestrian_distance"],
+                               (target_x ** 2 + target_y ** 2) ** .5)
+        self.assertEqual(modified["data_source"], "nuscenes_sample_annotation_adjusted")
+        self.assertAlmostEqual(modified["track"][0]["x"], target_x, places=3)
+        self.assertAlmostEqual(modified["track"][0]["y"], target_y, places=3)
+        for original_point, modified_point in zip(original["track"], modified["track"]):
+            self.assertAlmostEqual(modified_point["x"] - original_point["x"], 4.0, places=3)
+            self.assertAlmostEqual(modified_point["y"] - original_point["y"], -2.5, places=3)
 
     def test_generated_pedestrian_skill_keeps_scene_provenance(self):
         preset = next(item for item in DATA_STORE.presets() if item["key"] == "ped")

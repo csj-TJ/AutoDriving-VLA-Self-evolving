@@ -273,6 +273,43 @@ details > summary::-webkit-details-marker { display: none; }
 }
 .parameter-details[open] > summary::after, .model-details[open] > summary::after, .source-details[open] > summary::after { content: "−"; }
 .parameter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 8px; padding: 12px 0 2px; }
+.coordinate-block {
+  grid-column: 1 / -1;
+  min-width: 0;
+  margin: 2px 0 0;
+  padding: 13px;
+  border: 1px solid var(--hairline);
+  border-radius: 13px;
+  background: var(--paper);
+}
+.coordinate-block legend {
+  padding: 0 5px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+.coordinate-input-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.coordinate-distance {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.coordinate-distance input {
+  width: 94px;
+  min-height: 32px;
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--canvas);
+  color: var(--ink);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.coordinate-block p { margin: 10px 0 0; color: var(--muted-light); font-size: 9px; line-height: 1.5; }
 .run {
   width: 100%;
   min-height: 50px;
@@ -339,6 +376,52 @@ details > summary::-webkit-details-marker { display: none; }
 .revised-dot { background: var(--revised); }
 .canvas-wrap { position: relative; height: 510px; }
 canvas { display: block; width: 100%; height: 100%; }
+.coordinate-probe {
+  position: absolute;
+  z-index: 4;
+  left: 0;
+  top: 0;
+  display: none;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+.coordinate-probe.visible { display: block; }
+.coordinate-probe > i {
+  position: absolute;
+  left: -5px;
+  top: -5px;
+  width: 10px;
+  height: 10px;
+  border: 1px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, .26);
+}
+.coordinate-probe > i::before, .coordinate-probe > i::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  background: rgba(255, 255, 255, .62);
+  transform: translate(-50%, -50%);
+}
+.coordinate-probe > i::before { width: 22px; height: 1px; }
+.coordinate-probe > i::after { width: 1px; height: 22px; }
+.coordinate-probe output {
+  position: absolute;
+  left: 13px;
+  top: -15px;
+  min-width: max-content;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: 7px;
+  background: rgba(20, 20, 22, .88);
+  color: #fff;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  backdrop-filter: blur(10px);
+}
+.coordinate-probe.flip output { left: auto; right: 13px; }
 .camera-preview {
   position: absolute;
   right: 14px;

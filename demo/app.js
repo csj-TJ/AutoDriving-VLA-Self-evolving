@@ -3,6 +3,7 @@ const form = $('#form');
 const canvas = $('#scene');
 const ctx = canvas.getContext('2d');
 const numericFields = ['ego_speed', 'speed_limit', 'lead_distance', 'lead_speed', 'stopline_distance', 'pedestrian_distance', 'road_curvature'];
+const coordinateFields = ['pedestrian_x', 'pedestrian_y'];
 const numericFieldLabels = {
   ego_speed: '自车速度',
   speed_limit: '道路限速',
@@ -11,8 +12,10 @@ const numericFieldLabels = {
   stopline_distance: '停止线距离',
   pedestrian_distance: '行人距离',
   road_curvature: '道路曲率',
+  pedestrian_x: '行人纵向 X',
+  pedestrian_y: '行人横向 Y',
 };
-const sceneFields = [...numericFields, 'weather', 'route_command', 'traffic_light'];
+const sceneFields = [...numericFields, ...coordinateFields, 'weather', 'route_command', 'traffic_light'];
 
 const state = {
   data: null,
@@ -63,6 +66,7 @@ function applyScenario(scenario, sampleId = '', source = 'training_dataset', run
   state.sampleId = sampleId;
   state.scenarioSource = source;
   state.dirty = false;
+  coordinateFields.forEach(key => { form.elements[key].value = ''; });
   Object.entries(scenario).forEach(([key, value]) => {
     if (form.elements[key]) form.elements[key].value = value;
   });
@@ -78,6 +82,10 @@ function applyScenario(scenario, sampleId = '', source = 'training_dataset', run
 function formPayload() {
   const payload = Object.fromEntries(new FormData(form));
   numericFields.forEach(key => { payload[key] = Number(payload[key]); });
+  coordinateFields.forEach(key => {
+    if (payload[key] === '') delete payload[key];
+    else payload[key] = Number(payload[key]);
+  });
   payload.scene_id = state.dirty ? `${state.sceneId}:edited` : state.sceneId;
   payload.scenario_source = state.dirty ? 'user_control_modified' : state.scenarioSource;
   payload.source_sample_id = state.sampleId || null;
@@ -94,7 +102,43 @@ function validateNumericFields() {
       return false;
     }
   }
+  const coordinateValues = coordinateFields.map(key => form.elements[key].value.trim());
+  if (coordinateValues.some(Boolean) && !coordinateValues.every(Boolean)) {
+    const missingKey = coordinateValues[0] ? coordinateFields[1] : coordinateFields[0];
+    form.elements[missingKey].focus();
+    showError('行人 X、Y 坐标需要同时填写');
+    return false;
+  }
+  for (const key of coordinateFields) {
+    const raw = form.elements[key].value.trim();
+    if (raw && !Number.isFinite(Number(raw))) {
+      form.elements[key].focus();
+      showError(`${numericFieldLabels[key]}请输入有效数字`);
+      return false;
+    }
+  }
   return true;
+}
+
+function compactNumber(value, digits = 3) {
+  return Number(Number(value).toFixed(digits)).toString();
+}
+
+function updatePedestrianDistance() {
+  const x = Number(form.elements.pedestrian_x.value);
+  const y = Number(form.elements.pedestrian_y.value);
+  if (Number.isFinite(x) && Number.isFinite(y)
+      && form.elements.pedestrian_x.value.trim() && form.elements.pedestrian_y.value.trim()) {
+    form.elements.pedestrian_distance.value = compactNumber(Math.hypot(x, y));
+  }
+}
+
+function syncPedestrianCoordinates(result) {
+  const point = result.visualization?.pedestrian?.track?.[0];
+  if (!point) return;
+  form.elements.pedestrian_x.value = compactNumber(point.x);
+  form.elements.pedestrian_y.value = compactNumber(point.y);
+  form.elements.pedestrian_distance.value = compactNumber(result.scenario.pedestrian_distance);
 }
 
 async function loadSceneById(sceneId) {
@@ -141,6 +185,7 @@ async function run() {
       body: JSON.stringify(formPayload()),
     });
     state.data = result;
+    syncPedestrianCoordinates(result);
     state.frame = 0;
     state.playing = true;
     renderPanels();
@@ -243,6 +288,21 @@ function worldPoint(point) {
   const longitudinalScale = (canvas.height - 72) / horizon;
   const lateralScale = 25;
   return { x: canvas.width / 2 + point[1] * lateralScale, y: canvas.height - 38 - point[0] * longitudinalScale };
+}
+
+function canvasToWorld(event) {
+  const rect = canvas.getBoundingClientRect();
+  const canvasX = (event.clientX - rect.left) * canvas.width / rect.width;
+  const canvasY = (event.clientY - rect.top) * canvas.height / rect.height;
+  const horizon = state.data?.visualization.world_horizon_m || 70;
+  const longitudinalScale = (canvas.height - 72) / horizon;
+  return {
+    x: (canvas.height - 38 - canvasY) / longitudinalScale,
+    y: (canvasX - canvas.width / 2) / 25,
+    localX: event.clientX - rect.left,
+    localY: event.clientY - rect.top,
+    width: rect.width,
+  };
 }
 
 function rounded(x, y, width, height, radius, fill) {
@@ -468,6 +528,18 @@ sceneFields.forEach(name => form.elements[name].addEventListener('input', () => 
   state.scenarioSource = 'user_control_modified';
   $('#sceneName').textContent = `${state.sceneId} · 已修改控制参数`;
 }));
+coordinateFields.forEach(name => form.elements[name].addEventListener('input', updatePedestrianDistance));
+canvas.addEventListener('mousemove', event => {
+  if (!state.data) return;
+  const point = canvasToWorld(event);
+  const probe = $('#coordinateProbe');
+  probe.style.left = `${point.localX}px`;
+  probe.style.top = `${point.localY}px`;
+  probe.classList.toggle('flip', point.localX > point.width - 145);
+  probe.classList.add('visible');
+  $('#coordinateValue').textContent = `X ${point.x.toFixed(1)} · Y ${point.y.toFixed(1)} m`;
+});
+canvas.addEventListener('mouseleave', () => $('#coordinateProbe').classList.remove('visible'));
 form.onsubmit = event => { event.preventDefault(); run(); };
 $('#loadScene').onclick = () => loadSceneById($('#sceneIdInput').value).catch(error => showError(error.message));
 $('#randomScene').onclick = () => loadRandomScene().catch(error => showError(error.message));

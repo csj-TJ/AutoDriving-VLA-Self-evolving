@@ -4,6 +4,7 @@ import json
 import time
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from math import hypot, isfinite
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
@@ -30,13 +31,29 @@ def evolution_history() -> list[dict]:
         return []
 
 
+def _pedestrian_position(obj: dict) -> tuple[float, float] | None:
+    raw = [obj.get("pedestrian_x"), obj.get("pedestrian_y")]
+    missing = [value is None or value == "" for value in raw]
+    if all(missing):
+        return None
+    if any(missing):
+        raise ValueError("pedestrian_x and pedestrian_y must be provided together")
+    position = (float(raw[0]), float(raw[1]))
+    if not all(isfinite(value) for value in position):
+        raise ValueError("pedestrian coordinates must be finite")
+    return position
+
+
 def _scenario(obj: dict) -> Scenario:
+    pedestrian_position = _pedestrian_position(obj)
+    pedestrian_distance = (hypot(*pedestrian_position) if pedestrian_position is not None
+                           else float(obj["pedestrian_distance"]))
     return Scenario(
         scene_id=str(obj.get("scene_id", "demo")),
         ego_speed=float(obj["ego_speed"]), speed_limit=float(obj["speed_limit"]),
         lead_distance=float(obj["lead_distance"]), lead_speed=float(obj["lead_speed"]),
         traffic_light=obj["traffic_light"], stopline_distance=float(obj["stopline_distance"]),
-        pedestrian_distance=float(obj["pedestrian_distance"]), road_curvature=float(obj["road_curvature"]),
+        pedestrian_distance=pedestrian_distance, road_curvature=float(obj["road_curvature"]),
         route_command=obj["route_command"], weather=obj["weather"],
         unseen=bool(obj.get("unseen", False)),
     )
@@ -52,7 +69,11 @@ def _source_record(obj: dict) -> dict | None:
         return None
 
 
-def _visualization(s: Scenario, source_record: dict | None = None) -> dict:
+def _visualization(
+    s: Scenario,
+    source_record: dict | None = None,
+    pedestrian_position: tuple[float, float] | None = None,
+) -> dict:
     def center_y(x: float) -> float:
         return s.road_curvature * (max(0.0, x) ** 1.45) * .12
 
@@ -68,16 +89,22 @@ def _visualization(s: Scenario, source_record: dict | None = None) -> dict:
         original_distance = float(
             source_record.get("scenario", {}).get("pedestrian_distance", s.pedestrian_distance)
         )
-        distance_offset = s.pedestrian_distance - original_distance
+        first_point = pedestrian_track["points"][0]
+        if pedestrian_position is not None:
+            x_offset = pedestrian_position[0] - float(first_point["x"])
+            y_offset = pedestrian_position[1] - float(first_point["y"])
+        else:
+            x_offset = s.pedestrian_distance - original_distance
+            y_offset = 0.0
         adjusted_track = [
             {
                 **point,
-                "x": round(float(point["x"]) + distance_offset, 3),
-                "y": round(float(point["y"]), 3),
+                "x": round(float(point["x"]) + x_offset, 3),
+                "y": round(float(point["y"]) + y_offset, 3),
             }
             for point in pedestrian_track["points"]
         ]
-        distance_adjusted = abs(distance_offset) > 1e-6
+        distance_adjusted = abs(x_offset) > 1e-6 or abs(y_offset) > 1e-6
         pedestrian = {
             "visible": any(-5.0 <= point["x"] <= horizon for point in adjusted_track),
             "track": adjusted_track,
@@ -88,18 +115,21 @@ def _visualization(s: Scenario, source_record: dict | None = None) -> dict:
             "duration_s": pedestrian_track.get("duration_s", 0.0),
             "displacement_m": pedestrian_track.get("displacement_m", 0.0),
             "mean_speed_mps": pedestrian_track.get("mean_speed_mps", 0.0),
-            "distance_offset_m": round(distance_offset, 3),
+            "distance_offset_m": round(s.pedestrian_distance - original_distance, 3),
+            "coordinate_offset_m": {"x": round(x_offset, 3), "y": round(y_offset, 3)},
         }
     else:
-        visible = s.pedestrian_distance <= horizon
+        x = pedestrian_position[0] if pedestrian_position is not None else s.pedestrian_distance
+        y = (pedestrian_position[1] if pedestrian_position is not None
+             else center_y(x) - road_width / 2 - .55)
+        visible = -5.0 <= x <= horizon
         pedestrian = {
             "visible": visible,
-            "track": ([{"t": 0.0, "x": s.pedestrian_distance,
-                        "y": center_y(s.pedestrian_distance) - road_width / 2 - .55}]
-                      if visible else []),
-            "data_source": "scenario_static" if visible else "none",
+            "track": [{"t": 0.0, "x": x, "y": y}],
+            "data_source": "scenario_static",
             "duration_s": 0.0, "displacement_m": 0.0, "mean_speed_mps": 0.0,
             "distance_offset_m": 0.0,
+            "coordinate_offset_m": {"x": 0.0, "y": 0.0},
         }
     payload = {
         "world_horizon_m": horizon,
@@ -151,11 +181,13 @@ def _run_policy(s: Scenario, name: str, runtime: str, request_id: str) -> tuple[
 def infer(obj: dict) -> dict:
     s = _scenario(obj)
     source_record = _source_record(obj)
+    pedestrian_position = _pedestrian_position(obj)
     request_id = str(obj.get("request_id") or uuid.uuid4().hex[:12])
     policy = obj.get("policy", "reflection_sft")
     result, timing = _run_policy(s, policy, obj.get("runtime", "auto"), request_id)
     payload = {
-        "request_id": request_id, "scenario": s.to_dict(), "visualization": _visualization(s, source_record),
+        "request_id": request_id, "scenario": s.to_dict(),
+        "visualization": _visualization(s, source_record, pedestrian_position),
         **result, "provenance": {"scenario_source": obj.get("scenario_source", "user_control"),
                                 "source_sample_id": obj.get("source_sample_id"),
                                 "data": DATA_STORE.status(), "timing": timing},
@@ -166,6 +198,7 @@ def infer(obj: dict) -> dict:
 def compare(obj: dict) -> dict:
     s = _scenario(obj)
     source_record = _source_record(obj)
+    pedestrian_position = _pedestrian_position(obj)
     request_id = str(obj.get("request_id") or uuid.uuid4().hex[:12])
     runtime = obj.get("runtime", "auto")
     EVENT_LOG.emit(
@@ -194,7 +227,8 @@ def compare(obj: dict) -> dict:
         {"phase": "重规划", "detail": f"{selected} 目标速度 {results[selected]['trajectory']['target_speed']:.1f} m/s，综合分变化 {improved_score-base_score:+.1f}"},
     ]
     payload = {
-        "request_id": request_id, "scenario": s.to_dict(), "visualization": _visualization(s, source_record),
+        "request_id": request_id, "scenario": s.to_dict(),
+        "visualization": _visualization(s, source_record, pedestrian_position),
         "results": results, "selected_policy": selected,
         "events": events, "failure_count": len(failures),
         "delta": {"overall": round(improved_score - base_score, 3), "target_speed": round(results[selected]["trajectory"]["target_speed"] - results["baseline"]["trajectory"]["target_speed"], 3)},
