@@ -8,7 +8,12 @@ from typing import Any
 import numpy as np
 
 from .schema import Scenario, Trajectory
-from .simulator import expert_target_speed
+from .simulator import (
+    assess_pedestrian_conflict,
+    expert_target_speed,
+    pedestrian_feature_distance,
+    route_lateral_position,
+)
 
 
 FEATURE_NAMES = ["bias", "speed_limit", "lead_gap", "lead_speed", "red", "stop_gap", "ped_gap", "curvature", "adverse"]
@@ -18,7 +23,7 @@ def scenario_features(s: Scenario) -> np.ndarray:
     return np.asarray([
         1.0, s.speed_limit, min(s.lead_distance, 60.0) / 60.0, s.lead_speed,
         float(s.traffic_light == "red"), min(s.stopline_distance, 45.0) / 45.0,
-        min(s.pedestrian_distance, 60.0) / 60.0, abs(s.road_curvature),
+        min(pedestrian_feature_distance(s), 60.0) / 60.0, abs(s.road_curvature),
         float(s.weather in {"rain", "fog", "night"}),
     ], dtype=float)
 
@@ -32,7 +37,12 @@ class Policy:
     def target_speed(self, s: Scenario) -> float:
         if self.weights is not None:
             raw = float(scenario_features(s) @ np.asarray(self.weights))
-            return min(s.speed_limit * 1.25, max(0.0, raw))
+            target = min(s.speed_limit * 1.25, max(0.0, raw))
+            if self.name != "baseline":
+                risk = assess_pedestrian_conflict(s, target_speed=target)
+                if risk.relevant and risk.safe_target_speed is not None:
+                    target = min(target, risk.safe_target_speed)
+            return target
         rng = random.Random(f"{self.seed}:{s.scene_id}:{self.name}")
         expert = expert_target_speed(s)
         if self.name == "expert":
@@ -47,9 +57,12 @@ class Policy:
 
     def plan(self, s: Scenario, horizon: int = 12, dt: float = 0.5) -> Trajectory:
         target = self.target_speed(s)
+        pedestrian_risk = (
+            assess_pedestrian_conflict(s, target_speed=max(target, s.ego_speed))
+            if self.name != "baseline" else None
+        )
         points: list[list[float]] = []
         x, y, v = 0.0, 0.0, s.ego_speed
-        route_sign = -1.0 if s.route_command == "left" else (1.0 if s.route_command == "right" else 0.0)
         for k in range(horizon):
             alpha = (k + 1) / horizon
             accel = max(-3.8, min(2.3, (target - v) * 0.45))
@@ -63,10 +76,14 @@ class Policy:
                 if proposed_x > hard_limit:
                     proposed_x = hard_limit
                     v = min(v, s.lead_speed, max(0.0, (proposed_x - x) / dt))
+                if (pedestrian_risk and pedestrian_risk.relevant
+                        and pedestrian_risk.conflict_x_m is not None):
+                    pedestrian_limit = max(x, pedestrian_risk.conflict_x_m - 2.5)
+                    if proposed_x > pedestrian_limit:
+                        proposed_x = pedestrian_limit
+                        v = max(0.0, (proposed_x - x) / dt)
             x = proposed_x
-            curve = s.road_curvature * (x ** 1.45) * 0.12
-            route = route_sign * 1.7 * (alpha ** 2)
-            y = curve + route
+            y = route_lateral_position(s, x, alpha)
             points.append([round(x, 4), round(y, 4), round(v, 4)])
         rationale = f"{self.name}: target={target:.2f}m/s; light={s.traffic_light}; lead_gap={s.lead_distance:.1f}m"
         return Trajectory(points=points, target_speed=round(target, 4), rationale=rationale, policy=self.name)

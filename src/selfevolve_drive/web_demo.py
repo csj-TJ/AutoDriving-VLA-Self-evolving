@@ -44,11 +44,43 @@ def _pedestrian_position(obj: dict) -> tuple[float, float] | None:
     return position
 
 
-def _scenario(obj: dict) -> Scenario:
+def _adjusted_pedestrian_track(
+    s: Scenario,
+    source_record: dict | None,
+    pedestrian_position: tuple[float, float] | None,
+) -> tuple[list[dict], float, float, float | None]:
+    pedestrian = (
+        source_record.get("source", {}).get("participants", {}).get("pedestrian")
+        if source_record else None
+    )
+    if not pedestrian or not pedestrian.get("points"):
+        return [], 0.0, 0.0, None
+    original_distance = float(
+        source_record.get("scenario", {}).get("pedestrian_distance", s.pedestrian_distance)
+    )
+    first_point = pedestrian["points"][0]
+    if pedestrian_position is not None:
+        x_offset = pedestrian_position[0] - float(first_point["x"])
+        y_offset = pedestrian_position[1] - float(first_point["y"])
+    else:
+        x_offset = s.pedestrian_distance - original_distance
+        y_offset = 0.0
+    adjusted = [
+        {
+            **point,
+            "x": round(float(point["x"]) + x_offset, 3),
+            "y": round(float(point["y"]) + y_offset, 3),
+        }
+        for point in pedestrian["points"]
+    ]
+    return adjusted, x_offset, y_offset, original_distance
+
+
+def _scenario(obj: dict, source_record: dict | None = None) -> Scenario:
     pedestrian_position = _pedestrian_position(obj)
     pedestrian_distance = (hypot(*pedestrian_position) if pedestrian_position is not None
                            else float(obj["pedestrian_distance"]))
-    return Scenario(
+    scenario = Scenario(
         scene_id=str(obj.get("scene_id", "demo")),
         ego_speed=float(obj["ego_speed"]), speed_limit=float(obj["speed_limit"]),
         lead_distance=float(obj["lead_distance"]), lead_speed=float(obj["lead_speed"]),
@@ -57,6 +89,23 @@ def _scenario(obj: dict) -> Scenario:
         route_command=obj["route_command"], weather=obj["weather"],
         unseen=bool(obj.get("unseen", False)),
     )
+    adjusted_track, _, _, _ = _adjusted_pedestrian_track(
+        scenario, source_record, pedestrian_position
+    )
+    if adjusted_track:
+        scenario.pedestrian_track = [
+            [float(point.get("t", 0.0)), float(point["x"]), float(point["y"])]
+            for point in adjusted_track
+        ]
+    elif pedestrian_position is not None:
+        scenario.pedestrian_track = [[0.0, *pedestrian_position]]
+    else:
+        x = scenario.pedestrian_distance
+        center_y = scenario.road_curvature * (max(0.0, x) ** 1.45) * .12
+        scenario.pedestrian_track = [[0.0, x, center_y - 10.5 / 2 - .55]]
+    scenario.pedestrian_x = scenario.pedestrian_track[0][1]
+    scenario.pedestrian_y = scenario.pedestrian_track[0][2]
+    return scenario
 
 
 def _source_record(obj: dict) -> dict | None:
@@ -85,25 +134,10 @@ def _visualization(
         source_record.get("source", {}).get("participants", {}).get("pedestrian")
         if source_record else None
     )
-    if pedestrian_track and pedestrian_track.get("points"):
-        original_distance = float(
-            source_record.get("scenario", {}).get("pedestrian_distance", s.pedestrian_distance)
-        )
-        first_point = pedestrian_track["points"][0]
-        if pedestrian_position is not None:
-            x_offset = pedestrian_position[0] - float(first_point["x"])
-            y_offset = pedestrian_position[1] - float(first_point["y"])
-        else:
-            x_offset = s.pedestrian_distance - original_distance
-            y_offset = 0.0
-        adjusted_track = [
-            {
-                **point,
-                "x": round(float(point["x"]) + x_offset, 3),
-                "y": round(float(point["y"]) + y_offset, 3),
-            }
-            for point in pedestrian_track["points"]
-        ]
+    adjusted_track, x_offset, y_offset, original_distance = _adjusted_pedestrian_track(
+        s, source_record, pedestrian_position
+    )
+    if pedestrian_track and adjusted_track and original_distance is not None:
         distance_adjusted = abs(x_offset) > 1e-6 or abs(y_offset) > 1e-6
         pedestrian = {
             "visible": any(-5.0 <= point["x"] <= horizon for point in adjusted_track),
@@ -179,8 +213,8 @@ def _run_policy(s: Scenario, name: str, runtime: str, request_id: str) -> tuple[
 
 
 def infer(obj: dict) -> dict:
-    s = _scenario(obj)
     source_record = _source_record(obj)
+    s = _scenario(obj, source_record)
     pedestrian_position = _pedestrian_position(obj)
     request_id = str(obj.get("request_id") or uuid.uuid4().hex[:12])
     policy = obj.get("policy", "reflection_sft")
@@ -196,8 +230,8 @@ def infer(obj: dict) -> dict:
 
 
 def compare(obj: dict) -> dict:
-    s = _scenario(obj)
     source_record = _source_record(obj)
+    s = _scenario(obj, source_record)
     pedestrian_position = _pedestrian_position(obj)
     request_id = str(obj.get("request_id") or uuid.uuid4().hex[:12])
     runtime = obj.get("runtime", "auto")
@@ -273,7 +307,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/scenario":
             scene_id = query.get("id", [""])[0]
             row = DATA_STORE.get(scene_id)
-            scenario = _scenario(row["scenario"])
+            scenario = _scenario(row["scenario"], row)
             EVENT_LOG.emit("data_select", "从训练数据加载场景", scene_id=scene_id,
                            sample_id=row.get("sample_id"), split=row.get("split"))
             self._json({"sample_id": row.get("sample_id"), "scene_id": scene_id,

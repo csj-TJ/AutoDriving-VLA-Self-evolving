@@ -10,6 +10,7 @@ import numpy as np
 
 from .planner import scenario_features
 from .schema import CriticResult, Scenario, Trajectory
+from .simulator import assess_pedestrian_conflict
 
 
 def _clip(x: float) -> float:
@@ -44,10 +45,27 @@ class RuleBasedCritic:
             safety -= (3.0 - ttc) * 28.0
             failures.append("unsafe_following")
             evidence.append(f"minimum TTC proxy={ttc:.2f}s < 3.0s")
-        if s.pedestrian_distance < 18.0 and t.target_speed > max(1.0, (s.pedestrian_distance - 3.0) / 2.5 + 1.2):
+        pedestrian = assess_pedestrian_conflict(s, trajectory_points=t.points)
+        if pedestrian.source == "legacy_distance":
+            unsafe_legacy_speed = max(1.0, (s.pedestrian_distance - 3.0) / 2.5 + 1.2)
+            if pedestrian.relevant and t.target_speed > unsafe_legacy_speed:
+                safety -= 55.0
+                failures.append("pedestrian_yield_failure")
+                evidence.append(
+                    f"pedestrian at {s.pedestrian_distance:.1f}m while target speed={t.target_speed:.1f}m/s"
+                )
+        elif pedestrian.relevant:
             safety -= 55.0
             failures.append("pedestrian_yield_failure")
-            evidence.append(f"pedestrian at {s.pedestrian_distance:.1f}m while target speed={t.target_speed:.1f}m/s")
+            evidence.append(
+                f"预测 {pedestrian.conflict_time_s:.1f}s 时车辆与行人最小间距仅 "
+                f"{pedestrian.minimum_separation_m:.1f}m"
+            )
+        elif pedestrian.minimum_separation_m is not None:
+            evidence.append(
+                f"行人与车辆轨迹无时空冲突，预测最小间距 "
+                f"{pedestrian.minimum_separation_m:.1f}m"
+            )
         if float(np.max(speeds)) > s.speed_limit + 0.8:
             rule -= min(60.0, (float(np.max(speeds)) - s.speed_limit) * 12.0)
             failures.append("speeding")

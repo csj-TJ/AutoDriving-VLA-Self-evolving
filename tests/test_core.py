@@ -269,11 +269,45 @@ class CoreTests(unittest.TestCase):
             self.assertAlmostEqual(modified_point["x"] - original_point["x"], 4.0, places=3)
             self.assertAlmostEqual(modified_point["y"] - original_point["y"], -2.5, places=3)
 
+    def test_lateral_pedestrian_does_not_trigger_false_braking(self):
+        payload = {
+            "scene_id": "lateral-clearance", "ego_speed": 9.0, "speed_limit": 13.9,
+            "lead_distance": 100.0, "lead_speed": 13.9, "traffic_light": "green",
+            "stopline_distance": 45.0, "pedestrian_distance": 14.142,
+            "pedestrian_x": 10.0, "pedestrian_y": 10.0, "road_curvature": 0.0,
+            "route_command": "straight", "weather": "clear",
+            "policy": "reflection_sft", "runtime": "lite",
+        }
+        result = compare(payload)
+        revised = result["results"]["reflection_sft"]
+        self.assertGreater(revised["trajectory"]["target_speed"], 10.0)
+        self.assertNotIn("pedestrian_yield_failure", revised["critic"]["failures"])
+        self.assertTrue(any("无时空冲突" in item for item in revised["critic"]["evidence"]))
+
+    def test_pedestrian_on_ego_path_triggers_smooth_full_stop(self):
+        payload = {
+            "scene_id": "path-conflict", "ego_speed": 9.0, "speed_limit": 13.9,
+            "lead_distance": 100.0, "lead_speed": 13.9, "traffic_light": "green",
+            "stopline_distance": 45.0, "pedestrian_distance": 20.0,
+            "pedestrian_x": 20.0, "pedestrian_y": 0.0, "road_curvature": 0.0,
+            "route_command": "straight", "weather": "clear",
+            "policy": "reflection_sft", "runtime": "lite",
+        }
+        result = compare(payload)
+        baseline = result["results"]["baseline"]
+        revised = result["results"]["reflection_sft"]
+        self.assertIn("pedestrian_yield_failure", baseline["critic"]["failures"])
+        self.assertEqual(revised["trajectory"]["target_speed"], 0.0)
+        self.assertNotIn("pedestrian_yield_failure", revised["critic"]["failures"])
+        self.assertNotIn("uncomfortable_motion", revised["critic"]["failures"])
+        self.assertLess(revised["trajectory"]["points"][-1][0], 17.6)
+
     def test_generated_pedestrian_skill_keeps_scene_provenance(self):
         preset = next(item for item in DATA_STORE.presets() if item["key"] == "ped")
         result = compare({
             **preset["scenario"], "policy": "reflection_sft", "runtime": "lite",
             "scenario_source": "training_dataset", "source_sample_id": preset["sample_id"],
+            "pedestrian_x": 20.0, "pedestrian_y": 0.0,
         })
         skill = result["generated_skill"]
         self.assertEqual(skill["name"], "行人冲突提前礼让")

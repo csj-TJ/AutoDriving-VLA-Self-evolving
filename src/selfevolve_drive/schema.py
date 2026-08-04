@@ -18,6 +18,9 @@ class Scenario:
     route_command: str
     weather: str
     unseen: bool = False
+    pedestrian_x: float | None = None
+    pedestrian_y: float | None = None
+    pedestrian_track: list[list[float]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
