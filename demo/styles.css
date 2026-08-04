@@ -375,7 +375,9 @@ details > summary::-webkit-details-marker { display: none; }
 .baseline-dot { background: var(--baseline); }
 .revised-dot { background: var(--revised); }
 .canvas-wrap { position: relative; height: 510px; }
-canvas { display: block; width: 100%; height: 100%; }
+canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+canvas.pedestrian-hover { cursor: grab; }
+canvas.dragging-pedestrian { cursor: grabbing; }
 .coordinate-probe {
   position: absolute;
   z-index: 4;

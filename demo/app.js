@@ -28,6 +28,9 @@ const state = {
   dirty: false,
   dataTotal: 0,
   cameraImageUrl: '',
+  pedestrianDrag: null,
+  pedestrianHover: false,
+  dragPointerId: null,
 };
 
 function escapeHtml(value) {
@@ -66,6 +69,8 @@ function applyScenario(scenario, sampleId = '', source = 'training_dataset', run
   state.sampleId = sampleId;
   state.scenarioSource = source;
   state.dirty = false;
+  state.pedestrianDrag = null;
+  state.pedestrianHover = false;
   coordinateFields.forEach(key => { form.elements[key].value = ''; });
   Object.entries(scenario).forEach(([key, value]) => {
     if (form.elements[key]) form.elements[key].value = value;
@@ -185,6 +190,9 @@ async function run() {
       body: JSON.stringify(formPayload()),
     });
     state.data = result;
+    state.pedestrianDrag = null;
+    state.pedestrianHover = false;
+    canvas.classList.remove('pedestrian-hover', 'dragging-pedestrian');
     syncPedestrianCoordinates(result);
     state.frame = 0;
     state.playing = true;
@@ -292,17 +300,63 @@ function worldPoint(point) {
 
 function canvasToWorld(event) {
   const rect = canvas.getBoundingClientRect();
-  const canvasX = (event.clientX - rect.left) * canvas.width / rect.width;
-  const canvasY = (event.clientY - rect.top) * canvas.height / rect.height;
+  const localX = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
+  const localY = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
+  const canvasX = localX * canvas.width / rect.width;
+  const canvasY = localY * canvas.height / rect.height;
   const horizon = state.data?.visualization.world_horizon_m || 70;
   const longitudinalScale = (canvas.height - 72) / horizon;
   return {
     x: (canvas.height - 38 - canvasY) / longitudinalScale,
     y: (canvasX - canvas.width / 2) / 25,
-    localX: event.clientX - rect.left,
-    localY: event.clientY - rect.top,
+    localX,
+    localY,
     width: rect.width,
   };
+}
+
+function displayedPedestrianTrack() {
+  const track = Array.isArray(state.data?.visualization?.pedestrian?.track)
+    ? state.data.visualization.pedestrian.track
+    : [];
+  if (!state.pedestrianDrag || !track.length) return track;
+  const xOffset = state.pedestrianDrag.x - track[0].x;
+  const yOffset = state.pedestrianDrag.y - track[0].y;
+  return track.map(point => ({...point, x: point.x + xOffset, y: point.y + yOffset}));
+}
+
+function currentPedestrianPoint() {
+  const track = displayedPedestrianTrack();
+  if (!state.data?.visualization?.pedestrian?.visible || !track.length) return null;
+  const animationTime = Math.min(state.frame, 11) * .5;
+  return interpolateTrack(track, animationTime);
+}
+
+function pedestrianHitTest(event) {
+  const pedestrian = currentPedestrianPoint();
+  if (!pedestrian) return false;
+  const rect = canvas.getBoundingClientRect();
+  const pixel = worldPoint([pedestrian.x, pedestrian.y]);
+  const screenX = pixel.x * rect.width / canvas.width;
+  const screenY = pixel.y * rect.height / canvas.height;
+  const localX = event.clientX - rect.left;
+  const localY = event.clientY - rect.top;
+  return Math.hypot(localX - screenX, localY - screenY) <= 24;
+}
+
+function markScenarioDirty() {
+  if (!state.sceneId) return;
+  state.dirty = true;
+  state.scenarioSource = 'user_control_modified';
+  $('#sceneName').textContent = `${state.sceneId} · 已修改控制参数`;
+}
+
+function applyDraggedPedestrian(point) {
+  state.pedestrianDrag = {x: point.x, y: point.y};
+  form.elements.pedestrian_x.value = compactNumber(point.x);
+  form.elements.pedestrian_y.value = compactNumber(point.y);
+  updatePedestrianDistance();
+  markScenarioDirty();
 }
 
 function rounded(x, y, width, height, radius, fill) {
@@ -351,9 +405,7 @@ function drawRoad() {
   ctx.lineWidth = 7;
   ctx.beginPath(); ctx.moveTo(stopLeft.x, stopLeft.y); ctx.lineTo(stopRight.x, stopRight.y); ctx.stroke();
 
-  const pedestrianTrack = Array.isArray(visual.pedestrian?.track)
-    ? visual.pedestrian.track
-    : [];
+  const pedestrianTrack = displayedPedestrianTrack();
 
   if (visual.pedestrian?.visible && pedestrianTrack.length > 1) {
     ctx.strokeStyle = '#ffcf6d88'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
@@ -438,6 +490,12 @@ function drawRain() {
 
 function drawPedestrian(point, time = 0) {
   const stride = Math.sin(time * 7) * 5;
+  if (state.pedestrianHover || state.pedestrianDrag) {
+    ctx.fillStyle = 'rgba(255, 213, 106, .16)';
+    ctx.beginPath(); ctx.arc(point.x, point.y + 3, 21, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 226, 155, .72)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(point.x, point.y + 3, 17, 0, Math.PI * 2); ctx.stroke();
+  }
   ctx.fillStyle = '#ffd56a';
   ctx.beginPath(); ctx.arc(point.x, point.y - 8, 5, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = '#ffd56a'; ctx.lineWidth = 3;
@@ -523,23 +581,67 @@ function animationTick(timestamp) {
 }
 
 sceneFields.forEach(name => form.elements[name].addEventListener('input', () => {
-  if (!state.sceneId) return;
-  state.dirty = true;
-  state.scenarioSource = 'user_control_modified';
-  $('#sceneName').textContent = `${state.sceneId} · 已修改控制参数`;
+  markScenarioDirty();
 }));
 coordinateFields.forEach(name => form.elements[name].addEventListener('input', updatePedestrianDistance));
-canvas.addEventListener('mousemove', event => {
+canvas.addEventListener('pointermove', event => {
   if (!state.data) return;
   const point = canvasToWorld(event);
+  if (state.dragPointerId === event.pointerId) {
+    applyDraggedPedestrian(point);
+    state.pedestrianHover = true;
+    draw();
+  } else {
+    state.pedestrianHover = pedestrianHitTest(event);
+    canvas.classList.toggle('pedestrian-hover', state.pedestrianHover);
+    draw();
+  }
   const probe = $('#coordinateProbe');
   probe.style.left = `${point.localX}px`;
   probe.style.top = `${point.localY}px`;
   probe.classList.toggle('flip', point.localX > point.width - 145);
   probe.classList.add('visible');
-  $('#coordinateValue').textContent = `X ${point.x.toFixed(1)} · Y ${point.y.toFixed(1)} m`;
+  const hint = state.dragPointerId === event.pointerId ? ' · 松手放置' : state.pedestrianHover ? ' · 拖动行人' : '';
+  $('#coordinateValue').textContent = `X ${point.x.toFixed(1)} · Y ${point.y.toFixed(1)} m${hint}`;
 });
-canvas.addEventListener('mouseleave', () => $('#coordinateProbe').classList.remove('visible'));
+canvas.addEventListener('pointerdown', event => {
+  if (!pedestrianHitTest(event)) return;
+  event.preventDefault();
+  state.playing = false;
+  state.frame = 0;
+  state.dragPointerId = event.pointerId;
+  state.pedestrianHover = true;
+  canvas.setPointerCapture(event.pointerId);
+  canvas.classList.remove('pedestrian-hover');
+  canvas.classList.add('dragging-pedestrian');
+  $('#play').textContent = '▶';
+  applyDraggedPedestrian(canvasToWorld(event));
+  draw();
+});
+canvas.addEventListener('pointerup', event => {
+  if (state.dragPointerId !== event.pointerId) return;
+  if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+  state.dragPointerId = null;
+  state.pedestrianHover = false;
+  canvas.classList.remove('dragging-pedestrian', 'pedestrian-hover');
+  $('#coordinateProbe').classList.remove('visible');
+  run();
+});
+canvas.addEventListener('pointercancel', event => {
+  if (state.dragPointerId !== event.pointerId) return;
+  state.dragPointerId = null;
+  state.pedestrianHover = false;
+  canvas.classList.remove('dragging-pedestrian', 'pedestrian-hover');
+  $('#coordinateProbe').classList.remove('visible');
+  run();
+});
+canvas.addEventListener('pointerleave', () => {
+  if (state.dragPointerId !== null) return;
+  state.pedestrianHover = false;
+  canvas.classList.remove('pedestrian-hover');
+  $('#coordinateProbe').classList.remove('visible');
+  draw();
+});
 form.onsubmit = event => { event.preventDefault(); run(); };
 $('#loadScene').onclick = () => loadSceneById($('#sceneIdInput').value).catch(error => showError(error.message));
 $('#randomScene').onclick = () => loadRandomScene().catch(error => showError(error.message));
