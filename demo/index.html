@@ -51,8 +51,21 @@
     </main>
 
     <section class="right">
+      <article class="panel skill-panel">
+        <div class="panel-title"><h2>Skill 反思自进化</h2><span id="skillStatus">等待生成</span></div>
+        <div class="skill-scene">
+          <img id="skillCamera" alt="Skill 生成所使用的 nuScenes 场景证据">
+          <div><b id="skillName">运行场景后生成驾驶 Skill</b><code id="skillId">--</code><p id="skillSource">将联合场景画面、Critic 证据和历史反思记忆。</p></div>
+        </div>
+        <div class="skill-flow" id="skillFlow" aria-label="Skill 生成流程"></div>
+        <div class="skill-detail">
+          <div><h3>触发条件</h3><div id="skillTriggers" class="skill-facts"></div></div>
+          <div><h3>Skill 动作程序</h3><ol id="skillActions" class="skill-actions"></ol></div>
+        </div>
+        <div class="skill-validation" id="skillValidation">等待同场景重规划验证…</div>
+      </article>
       <article class="panel"><div class="panel-title"><h2>Critic 评分</h2><span>Live model + data</span></div><div class="score-grid" id="scores"></div><div class="delta">相对 Baseline：<strong id="delta">等待运行</strong></div><div class="score-source" id="scoreSource">等待实时评分来源…</div></article>
-      <article class="panel"><div class="panel-title"><h2>自进化训练</h2><span>Failure replay</span></div><div class="timeline" id="evolution"><div class="empty">正在读取训练轮次…</div></div></article>
+      <article class="panel"><div class="panel-title"><h2>Skill 记忆增长</h2><span>Failure replay</span></div><div class="timeline" id="evolution"><div class="empty">正在读取历史反思记忆…</div></div></article>
       <article class="panel"><div class="panel-title"><h2>闭环事件</h2><span>Live trace</span></div><div class="timeline" id="timeline"><div class="empty">运行场景后显示完整决策链。</div></div></article>
       <article class="panel"><div class="panel-title"><h2>Driving Reflection</h2><span>Structured</span></div><div class="reflection" id="reflection"><span class="verdict">等待 Critic</span><p class="empty">这里将展示失败根因、可核验证据、纠正策略与反事实动作。</p></div></article>
     </section>

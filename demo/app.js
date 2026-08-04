@@ -146,6 +146,7 @@ function renderPanels() {
   const baselineModel = baseline.model;
   const revisedModel = revised.model;
   const provenance = revised.score_provenance;
+  const skill = data.generated_skill;
 
   $('#sceneName').textContent = `${data.scenario.scene_id} · 请求 ${data.request_id}`;
   $('#baseOverall').textContent = baseline.critic.overall_score.toFixed(1);
@@ -160,6 +161,8 @@ function renderPanels() {
   $('#scores').innerHTML = scores.map(([name, value]) => `<div class="score"><span>${name}</span><strong>${value.toFixed(1)}</strong><div class="bar"><i style="width:${value}%"></i></div></div>`).join('');
   $('#scoreSource').innerHTML = `<b>${escapeHtml(critic.critic_type)}</b><br>规则实时轨迹评分 65% · Reward Critic 25% · 全训练集近邻 10%<br>近邻：${provenance.neighbors.map(item => escapeHtml(item.sample_id)).join('、')}<br>评分耗时：${provenance.latency_ms.toFixed(2)} ms`;
 
+  renderSkill(skill);
+
   $('#timeline').innerHTML = data.events.map((event, index) => `<div class="event ${index === 0 ? 'active' : ''}"><b>${String(index + 1).padStart(2, '0')} · ${escapeHtml(event.phase)}</b><p>${escapeHtml(event.detail)}</p></div>`).join('');
   const history = data.evolution_history || [];
   $('#evolution').innerHTML = history.length
@@ -170,6 +173,45 @@ function renderPanels() {
   const usingCache = [baselineModel, revisedModel].some(model => model.runtime_mode === 'opendrivevla_cache');
   $('#runtimePill').innerHTML = `<i></i>${usingCache ? 'OpenDriveVLA 真实缓存' : 'LiteVLA 实时回退'}`;
   $('#model').innerHTML = `<strong>OpenDriveVLA-0.5B · ${revisedModel.checkpoint_installed ? 'checkpoint 已核验' : 'checkpoint 不完整'}</strong>请求模式：${escapeHtml(form.elements.runtime.value)}<br>Baseline 实际：${escapeHtml(baselineModel.runtime)} · ${data.provenance.timing.baseline.model_latency_ms.toFixed(2)} ms<br>${escapeHtml(selected)} 实际：${escapeHtml(revisedModel.runtime)} · ${data.provenance.timing[selected].model_latency_ms.toFixed(2)} ms<br>数据：${data.provenance.data.records.toLocaleString()} 条完整索引 · 来源 ${escapeHtml(data.provenance.scenario_source)}<br>${escapeHtml(revisedModel.disclosure)}`;
+}
+
+function renderSkill(skill) {
+  if (!skill) return;
+  const statusText = skill.status === 'validated' ? '已通过同场景复评' : '候选 Skill';
+  $('#skillStatus').textContent = `${statusText} · 置信度 ${(skill.confidence * 100).toFixed(0)}%`;
+  $('#skillName').textContent = skill.name;
+  $('#skillId').textContent = skill.skill_id;
+  $('#skillCamera').src = state.cameraImageUrl || '';
+  $('#skillCamera').classList.toggle('visible', Boolean(state.cameraImageUrl));
+  const evidence = skill.evidence_source;
+  const token = evidence.annotation_token || evidence.sample_token || '交互参数场景';
+  $('#skillSource').textContent = `${evidence.dataset} · ${evidence.camera_count || 0} 路相机 · 证据 ${token}`;
+  $('#skillFlow').innerHTML = skill.generation_stages.map((stage, index) => `
+    <div class="skill-step" data-step="${index}">
+      <span>${String(index + 1).padStart(2, '0')}</span>
+      <b>${escapeHtml(stage.phase)}</b>
+      <em>${escapeHtml(stage.artifact)}</em>
+      <p>${escapeHtml(stage.detail)}</p>
+    </div>`).join('');
+  $('#skillTriggers').innerHTML = skill.triggers.map(item => `
+    <div><span>${escapeHtml(item.label)}</span><b>${escapeHtml(item.value)}</b></div>`).join('');
+  $('#skillActions').innerHTML = skill.actions.map(action => `<li>${escapeHtml(action)}</li>`).join('');
+  const validation = skill.validation;
+  const rounds = skill.memory.round_support.map(item => `R${item.round}:${item.records}`).join(' · ') || '本轮首次生成';
+  $('#skillValidation').innerHTML = `
+    <strong>${validation.passed ? '✓ Skill 验证通过' : '△ 保留为候选'}</strong>
+    <span>综合分 ${validation.overall_delta >= 0 ? '+' : ''}${validation.overall_delta.toFixed(1)}</span>
+    <span>安全分 ${validation.safety_delta >= 0 ? '+' : ''}${validation.safety_delta.toFixed(1)}</span>
+    <span>目标速度 ${validation.target_speed_delta >= 0 ? '+' : ''}${validation.target_speed_delta.toFixed(1)} m/s</span>
+    <span>记忆支持 ${skill.memory.matched_records} 条 · ${escapeHtml(rounds)}</span>`;
+  updateSkillFlow(0);
+}
+
+function updateSkillFlow(activeIndex) {
+  document.querySelectorAll('#skillFlow .skill-step').forEach((step, index) => {
+    step.classList.toggle('complete', index < activeIndex);
+    step.classList.toggle('active', index === activeIndex);
+  });
 }
 
 function worldPoint(point) {
@@ -370,8 +412,11 @@ function draw() {
   drawCar(current.x, current.y, '#35d8d0', trajectoryHeading(revised, index));
   $('#hudSpeed').innerHTML = `${revised[index][2].toFixed(1)} <small>m/s</small>`;
   $('#progress').style.width = `${state.frame / (revised.length - 1) * 100}%`;
-  const active = Math.min(4, Math.floor(state.frame / (revised.length - 1) * 5));
+  const eventCount = state.data.events.length;
+  const active = Math.min(eventCount - 1, Math.floor(state.frame / Math.max(1, revised.length - 1) * eventCount));
   document.querySelectorAll('#timeline .event').forEach((event, i) => event.classList.toggle('active', i <= active));
+  const skillStages = state.data.generated_skill?.generation_stages?.length || 1;
+  updateSkillFlow(Math.min(skillStages - 1, Math.floor(state.frame / Math.max(1, revised.length - 1) * skillStages)));
 }
 
 function animationTick(timestamp) {

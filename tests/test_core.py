@@ -176,7 +176,12 @@ class CoreTests(unittest.TestCase):
         result = compare(obj)
         self.assertIn("baseline", result["results"])
         self.assertIn("reflection_sft", result["results"])
-        self.assertEqual(len(result["events"]), 5)
+        self.assertEqual(len(result["events"]), 6)
+        skill = result["generated_skill"]
+        self.assertTrue(skill["skill_id"].startswith("SKILL-"))
+        self.assertEqual(len(skill["generation_stages"]), 5)
+        self.assertEqual(skill["validation"]["overall_delta"], result["delta"]["overall"])
+        self.assertGreaterEqual(skill["memory"]["matched_records"], 0)
         self.assertEqual(result["results"]["reflection_sft"]["critic"]["critic_type"], "live_rule_reward_data")
         self.assertEqual(result["provenance"]["data"]["records"], DATA_STORE.status()["records"])
         self.assertEqual(len(result["results"]["reflection_sft"]["score_provenance"]["neighbors"]), 7)
@@ -194,6 +199,18 @@ class CoreTests(unittest.TestCase):
         self.assertGreater(len(pedestrian["track"]), 1)
         self.assertGreater(pedestrian["displacement_m"], 1)
         self.assertEqual(len(pedestrian["annotation_token"]), 32)
+
+    def test_generated_pedestrian_skill_keeps_scene_provenance(self):
+        preset = next(item for item in DATA_STORE.presets() if item["key"] == "ped")
+        result = compare({
+            **preset["scenario"], "policy": "reflection_sft", "runtime": "lite",
+            "scenario_source": "training_dataset", "source_sample_id": preset["sample_id"],
+        })
+        skill = result["generated_skill"]
+        self.assertEqual(skill["name"], "行人冲突提前礼让")
+        self.assertEqual(skill["evidence_source"]["dataset"], "nuScenes")
+        self.assertEqual(len(skill["evidence_source"]["annotation_token"]), 32)
+        self.assertGreater(skill["memory"]["matched_records"], 0)
 
     def test_dynamic_demo_http_endpoints(self):
         server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)

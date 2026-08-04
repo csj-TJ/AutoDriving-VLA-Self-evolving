@@ -9,6 +9,7 @@ from urllib.parse import parse_qs, urlparse
 
 from .base_models import audit_opendrivevla, create_base_model
 from .demo_runtime import EVENT_LOG, LiveDataCritic, TrainingDataStore
+from .driving_skills import build_driving_skill
 from .reflection import reflect
 from .schema import Scenario
 
@@ -163,11 +164,16 @@ def compare(obj: dict) -> dict:
     base_score = results["baseline"]["critic"]["overall_score"]
     improved_score = results[selected]["critic"]["overall_score"]
     failures = results["baseline"]["critic"]["failures"]
+    generated_skill = build_driving_skill(
+        s, results["baseline"], results[selected],
+        ROOT / "outputs" / "reflection_memory.jsonl", source_record,
+    )
     events = [
         {"phase": "感知", "detail": f"检测到前车 {s.lead_distance:.0f}m、行人 {s.pedestrian_distance:.0f}m、{s.traffic_light} 信号灯"},
         {"phase": "初始规划", "detail": f"Baseline 目标速度 {results['baseline']['trajectory']['target_speed']:.1f} m/s"},
         {"phase": "Critic", "detail": "；".join(results["baseline"]["critic"]["evidence"]) or "未发现硬约束失败"},
         {"phase": "反思", "detail": "；".join(results["baseline"]["reflection"]["corrective_strategy"]) or "保持当前安全策略"},
+        {"phase": "Skill生成", "detail": f"{generated_skill['skill_id']} · {generated_skill['name']} · 历史支持 {generated_skill['memory']['matched_records']} 条"},
         {"phase": "重规划", "detail": f"{selected} 目标速度 {results[selected]['trajectory']['target_speed']:.1f} m/s，综合分变化 {improved_score-base_score:+.1f}"},
     ]
     payload = {
@@ -177,6 +183,7 @@ def compare(obj: dict) -> dict:
         "delta": {"overall": round(improved_score - base_score, 3), "target_speed": round(results[selected]["trajectory"]["target_speed"] - results["baseline"]["trajectory"]["target_speed"], 3)},
         "model": results[selected]["model"],
         "evolution_history": evolution_history(),
+        "generated_skill": generated_skill,
         "provenance": {
             "scenario_source": obj.get("scenario_source", "user_control"),
             "source_sample_id": obj.get("source_sample_id"),

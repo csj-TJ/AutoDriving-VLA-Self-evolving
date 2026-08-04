@@ -19,6 +19,8 @@ python scripts/run_demo.py
 
 Windows 也可直接双击 `启动Demo.bat`。新版驾驶台从完整训练数据索引动态选择真实路口、行人运动、近距前车和转弯场景，同屏比较 Baseline 与反思后轨迹，并展示模型调用、数据近邻、Critic 评分和结构化 Reflection。前车按场景速度运动，行人按 nuScenes `sample_annotation` 时间轨迹运动，自车停车后保持道路航向；后端命令行只输出简洁的人类可读运行摘要。详细操作见 `docs/Demo使用说明.md`。
 
+驾驶台会把本轮失败证据进一步抽象为可复用驾驶 Skill，实时展示“失败捕获→反思归因→Skill 抽象→重规划验证→记忆固化”过程。Skill 的触发条件来自当前场景，验证增益来自 Baseline/反思后实时评分，记忆支持数来自 `outputs/reflection_memory.jsonl`，不是前端固定展示值。
+
 ## 基座模型与轻量化结论
 
 完整模型实验**必须以 OpenDriveVLA-0.5B 为基座初始化**，再进行 LoRA Reflection SFT，而不是从零训练；Reflection+DPO 属于可选增强。本地 checkpoint 和官方源码现已下载。运行 `python scripts/audit_opendrivevla.py` 可核验文件、架构、依赖和真实推理缓存。Demo 默认采用 `auto` 模式：存在匹配的 OpenDriveVLA GPU 推理缓存时优先回放，否则明确切换到 LiteVLA CPU 机制模式。它不会把“权重已下载”误报为“权重已在当前进程加载”。详细边界与替换路径见 `docs/基座模型与轻量化说明.md`。
