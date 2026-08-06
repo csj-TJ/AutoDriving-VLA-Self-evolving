@@ -15,6 +15,10 @@
 \setlength{\LTpre}{0.5em}
 \setlength{\LTpost}{0.8em}
 \renewcommand{\arraystretch}{1.20}
+\renewcommand{\topfraction}{0.90}
+\renewcommand{\bottomfraction}{0.75}
+\renewcommand{\textfraction}{0.12}
+\renewcommand{\floatpagefraction}{0.78}
 \setlist{leftmargin=2.5em,itemsep=0.15em,topsep=0.25em}
 \pagestyle{fancy}
 \fancyhf{}
@@ -64,7 +68,6 @@
 
 \noindent\textbf{关键词：}自动驾驶；视觉语言动作模型；自我反思；多 Critic；监督微调；直接偏好优化；自进化
 
-\clearpage
 \section{引言}
 \subsection{研究背景}
 自动驾驶系统的技术路线正在从模块化感知、预测、规划逐步扩展到端到端统一建模。传统模块化系统便于验证局部功能，却会累积检测、跟踪、预测和规划之间的接口误差；端到端模型能够直接优化最终驾驶目标，但其内部决策难以解释，长尾失败也难以形成明确的再训练标签。VLA 模型进一步将语言引入决策空间，使驾驶指令、场景语义、因果解释和动作轨迹可以共享表征。OpenDriveVLA 以六相机视觉为输入，使用分层视觉语言对齐和离散 waypoint token 输出轨迹，是面向该方向的重要开源基座。
@@ -77,7 +80,6 @@
 \subsection{主要贡献}
 本文的贡献包括：其一，建立了从官方 nuScenes 表到 5,112 条可追溯反思记录的自动流水线，保留六相机图像和标注链；其二，构建了规则、离线语言代理和奖励模型三类 Critic 及其一致性分析；其三，实现 Baseline、SFT、Reflection SFT、Reflection DPO 与三轮记忆回放自进化，并引入验证集超参数选择和场景级置信区间；其四，补充 OpenDriveVLA-0.5B 的 LoRA/PEFT 训练接口，同时提供 Windows CPU 可运行的策略实验与 API 驱动 Demo；其五，从安全、规则、舒适、轨迹误差、Critic 一致性与复杂场景分组等角度开展系统评估，并明确开放环结果的适用边界。
 
-\clearpage
 \section{相关工作与基座选择}
 \subsection{规划导向的端到端自动驾驶}
 UniAD 将检测、跟踪、地图、运动预测、占用和规划纳入规划导向的统一查询框架，强调上游任务最终服务于驾驶轨迹。该范式提示本研究不应只评价解释文本质量，而应把轨迹安全、规则一致性和舒适性作为 Critic 的直接对象。OpenDriveVLA 则把结构化驾驶 token 与多视角视觉特征接入 Qwen2.5，并通过特征对齐、驾驶指令微调、环境交互学习与轨迹规划微调四阶段训练，实现语言推理到 waypoint 动作的统一生成。其 0.5B 版本规模较小、接口完整，适合作为课程项目的必要基座。
@@ -91,7 +93,7 @@ DPO 将人类或自动评价形成的 chosen/rejected 对转化为相对策略�
 \subsection{为何选择 OpenDriveVLA-0.5B}
 本项目不从零训练。OpenDriveVLA-0.5B checkpoint 的 \path{model.safetensors} 大小约为 1.47 GB，模型配置标识 \path{LlavaQwenForCausalLM}，并包含 tokenizer、generation config 与特殊 token 文件。相较 7B 以上 VLA，0.5B 更适合采用冻结视觉塔、缓存视觉特征和 LoRA 的轻量路线。完整官方模型仍依赖其 \path{drivevla/}、\path{llava/}、\path{projects/} 与第三方检测栈；本地 Demo 通过统一 \path{Policy.plan()} 接口调用训练后的轻量策略，在存在 GPU 推理缓存时可直接切换到 OpenDriveVLA 输出。
 
-\begin{table}[H]
+\begin{table}[!htbp]
 \centering\small
 \caption{参考工作与本文设计之间的关系}
 \begin{tabular}{P{0.18\textwidth}P{0.29\textwidth}P{0.39\textwidth}}
@@ -108,7 +110,6 @@ DPO & 基于偏好对的直接策略优化 & 由失败轨迹和修正轨迹形�
 \end{tabular}
 \end{table}
 
-\clearpage
 \section{数据来源、抽取与可追溯性}
 \subsection{官方数据来源}
 实验使用 nuScenes 官方发布的 v1.0-mini 压缩包，下载入口为 \url{https://www.nuscenes.org/nuscenes\#download}，开发工具为 \url{https://github.com/nutonomy/nuscenes-devkit}。本地原始归档 \path{data/nuscenes/v1.0-mini.tgz} 大小为 4,167,696,325 字节，清单记录 SHA-256 摘要 \texttt{943037ab...fc9298f}。mini 版本包含 10 个完整场景，适合快速验证数据链路和算法闭环，但不替代全量 trainval 数据。
@@ -118,7 +119,7 @@ DPO & 基于偏好对的直接策略优化 & 由失败轨迹和修正轨迹形�
 
 原始 404 个关键帧经完整性筛选后保留 284 个。每个有效关键帧运行 18 组固定种子候选策略，覆盖速度偏置、跟车响应、行人礼让、弯道和规则扰动，形成 5,112 条 rollout。多候选并非复制标签：场景来源相同，但候选动作、Critic 分数、失败根因和反思纠正均独立计算。
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
 \centering
 \resizebox{0.98\textwidth}{!}{%
 \begin{tikzpicture}[node distance=8mm and 7mm,scale=0.94,transform shape]
@@ -147,7 +148,7 @@ DPO & 基于偏好对的直接策略优化 & 由失败轨迹和修正轨迹形�
 \subsection{来源字段与数据审计}
 每条记录的 \texttt{source} 对象保存 sample token、scene token、scene name、log token、location、六相机 sample\_data token 与相对图像路径、参与评价的 annotation token、专家轨迹来源和候选编号。数据审计可以从任意训练记录回查原图、ego pose 与标注对象。为防止同一驾驶片段泄漏，数据集按 scene token 而非 rollout 随机划分：字典序固定的 6 个场景用于训练，2 个用于验证，2 个用于测试。
 
-\begin{table}[H]
+\begin{table}[!htbp]
 \centering\small
 \caption{数据规模与划分}
 \begin{tabular}{lrrrr}
@@ -165,7 +166,6 @@ DPO & 基于偏好对的直接策略优化 & 由失败轨迹和修正轨迹形�
 \subsection{数据边界与中性先验}
 nuScenes mini 不提供与本实验完全对应的逐帧交通灯相位、停止线距离和道路限速表，当前轻量实验也未加载 map expansion。系统对这三项采用可审计的中性先验：限速 13.9 m/s、绿灯、停止线 45 m。该处理只为保持 Rule Critic 接口完整，不被解释为真实交通灯识别标签。天气由 scene 描述和日志信息映射；相机图像、车辆/行人标注和 ego 运动均来自官方数据。
 
-\clearpage
 \section{多 Critic 评价模型}
 \subsection{总体设计}
 Critic 的目标不是生成泛化评价，而是回答三个可验证问题：轨迹是否安全、是否遵守已知交通约束、运动是否平顺。每个维度均输出 0--100 分、失败标签与数值证据。综合分定义为
@@ -195,7 +195,7 @@ Comfort Critic 统计平均绝对 jerk、最大减速度和横向曲率变化。
 \subsection{三类 Critic 实现}
 Rule-based Critic 是确定性参考，便于回归测试和证据审计。LLM Critic 提供 OpenAI-compatible JSON 接口；为确保无网络环境可重复运行，当前统计使用有界、固定种子的离线语言代理，其输出仍遵循在线 schema，但不冒充真实云端模型结果。Reward Model 使用三输出岭回归拟合 Safety、Rule 与 Comfort，用于检验学习型评价器对规则锚点的逼近能力。系统以规则硬门槛、Reward 排序和语言解释复核的组合方式降低单一评价器偏差。
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
 \centering
 \resizebox{0.98\textwidth}{!}{%
 \begin{tikzpicture}[node distance=8mm and 10mm,scale=0.96,transform shape]
@@ -214,7 +214,6 @@ Rule-based Critic 是确定性参考，便于回归测试和证据审计。LLM C
 \caption{多 Critic 评价、融合与质量门槛}
 \end{figure}
 
-\clearpage
 \section{结构化反思与 Skill 自进化}
 \subsection{Reflection 表示}
 Reflection 固定包含 \path{verdict}、\path{root_causes}、\path{evidence}、\path{corrective_strategy}、\path{counterfactual_action} 与 \path{confidence}。根因集合覆盖不安全跟车、行人礼让失败、超速、红灯风险和不舒适运动。证据必须引用 TTC、最小距离、速度差、停止线余量或 jerk 等可计算量；纠正策略必须能映射到目标速度、制动时机或轨迹形状；反事实动作描述若重新决策应产生的轨迹变化。
@@ -231,7 +230,7 @@ Q_{ref}=0.65C_{ref}+0.35E_{cover},
 \subsection{失败回放与防止遗忘}
 每轮自进化对训练集运行当前策略，收集 Critic 判定失败的记录，将新 Reflection 加入记忆池，并按失败严重度重新加权。为避免只学习最新错误导致灾难性遗忘，下一轮训练同时混合原始专家监督、既有高置信 Skill 与新失败样本。记忆以 sample token 和策略版本为主键，可追溯某条 Skill 首次出现、后续复用和是否已被修正。
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
 \centering
 \resizebox{0.98\textwidth}{!}{%
 \begin{tikzpicture}[node distance=9mm and 9mm,scale=0.95,transform shape]
@@ -249,7 +248,6 @@ Q_{ref}=0.65C_{ref}+0.35E_{cover},
 \caption{基于 Critic 与 Skill 记忆的多轮自进化闭环}
 \end{figure}
 
-\clearpage
 \section{训练方法与实现}
 \subsection{轻量策略特征与统一接口}
 Windows 实验使用冻结基座接口上的 LiteVLA 策略完成可重复训练。输入特征来自 nuScenes 元数据与轨迹场景，包括自车速度、前车距离与速度、行人相对位置与运动、道路曲率、导航指令、天气和规则状态；输出为目标速度及 12 个 waypoint。该轻量策略不是用来替代 OpenDriveVLA 视觉编码器，而是验证数据、Critic、Reflection、偏好优化和 Demo 的闭环。完整视觉训练脚本使用相同 JSONL 和轨迹 token，因此后续替换为真实 OpenDriveVLA 前向时不改变评价协议。
@@ -283,7 +281,7 @@ J=\mathrm{MAE}_{speed}+0.03(100-S_{all}),
 \end{equation}
 使模型不能通过极端慢速单独优化安全分。最终选择 SFT $\lambda=10$、Reflection SFT $\lambda=10$、DPO $\beta=0.03$。测试集只在模型与超参数固定后运行一次。
 
-\begin{table}[H]
+\begin{table}[!htbp]
 \centering\small
 \caption{验证集超参数选择摘要}
 \begin{tabular}{lrrrr}
@@ -300,7 +298,49 @@ DPO $\beta$ & 0.03/0.08/0.15 & 0.03 & 3.7961 & 偏好更新幅度最稳健 \\
 \subsection{OpenDriveVLA 参数高效训练路线}
 \texttt{scripts/train\_opendrivevla\_peft.py} 从本地 OpenDriveVLA-0.5B checkpoint 初始化，冻结视觉塔和原始主干，仅向 Q/K/V/O 注意力投影注入 LoRA，并可训练多模态投影与轨迹头。推荐 Linux、NVIDIA CUDA、PyTorch CUDA 版、Transformers、PEFT 与 Accelerate；DeepSpeed 属于可选分布式依赖，不应在 Windows CPU 环境中强制安装。数据导出包含 1,881 条普通 SFT、1,881 条 Reflection SFT 和 1,464 对 DPO 偏好记录。Windows 的 \texttt{--check-only} 用于验证权重、tokenizer、图像引用、配置与数据 schema；实际视觉训练建议在 16--24GB 以上显存环境中使用 4-bit/8-bit 量化、梯度检查点和累积梯度。
 
-\clearpage
+\subsection{训练样本编码与批处理}
+输入样本由视觉条件、语言条件和动作监督三部分组成。视觉条件包含同一 sample 的六相机引用，加载时按照 OpenDriveVLA 官方通道次序完成尺寸归一化和视觉 token 编码；语言条件由导航指令、场景摘要、可见交通参与者、当前速度和 Reflection 证据构成。普通 SFT 的回答区只包含标准轨迹 token，Reflection SFT 则在动作前增加结构化的失败根因与纠正策略，使模型学习“证据为何导致动作改变”。动作监督由 12 个局部坐标 waypoint 及其速度组成，并转换为官方六点轨迹接口兼容的离散 token。由于 source 字段保留 sample token 和相机路径，同一个语言动作样本始终能够回查原始图像。
+
+批处理采用按轨迹长度分桶的方式减少 padding。视觉特征可以在第一次前向后缓存，以避免三个训练阶段重复编码同一组图像；语言和动作 token 仍按阶段重新组织。对显存有限的 0.5B 训练，推荐 micro batch 为 1、梯度累积为 8--16、混合精度为 BF16 或 FP16，并启用 gradient checkpointing。优化器只接收 LoRA、多模态投影和轨迹头的可训练参数，冻结参数不创建梯度，从而显著降低优化器状态和反向激活占用。若量化加载，则计算权重以 4-bit/8-bit 保存、LoRA 以半精度更新；最终只保存 adapter，不改写原始 checkpoint。
+
+为避免 Reflection 文本比动作 token 更长而主导总损失，训练实现应分别记录解释 token loss 与轨迹 token loss，并对后者设置不低于解释项的权重。设反思解释序列为 $r$、动作序列为 $a$，联合监督目标为
+\begin{equation}
+\mathcal{L}_{RSFT}=\lambda_r\mathcal{L}_{CE}(r|x)+\lambda_a\mathcal{L}_{CE}(a|x,r),\qquad \lambda_a\geq\lambda_r.
+\end{equation}
+这使生成的解释必须服务于后续动作，而不是以语言流畅度替代规划准确度。缺少明确失败证据的 accepted 样本仍保留动作监督，但不强制模型生成修订文本。
+
+\subsection{三阶段训练调度}
+完整训练按能力建立、错误聚焦和偏好校准三个阶段进行。第一阶段普通 SFT 使用全部高质量专家记录，使轨迹头先掌握速度、跟车和转弯的平均行为；若直接从 DPO 开始，参考策略尚不能生成合理轨迹，chosen/rejected 的相对概率缺少稳定基线。第二阶段加载第一阶段最优 adapter，以失败样本加权的 Reflection SFT 强化行人礼让、近距跟车和规则失败，同时混入普通样本防止能力遗忘。第三阶段以 Reflection SFT 为参考策略，对 1,464 个 chosen/rejected 对进行小学习率 DPO，使修正轨迹相对原失败轨迹获得更高概率。
+
+每一阶段均采用 scene 隔离验证集进行早停与模型选择。保存间隔以优化器 step 而不是样本数计，验证时关闭随机增强并固定生成温度。选择模型时不只比较训练 loss：先检查输出 schema、轨迹长度和数值范围，再计算速度 MAE、1/2/3 秒 L2、Safety、Rule 与 Comfort；出现轨迹格式错误或安全硬约束退化的 checkpoint 不进入下一阶段。普通 SFT、Reflection SFT 与 DPO 分别保留独立 adapter，便于消融和回滚，不能只保存最终 DPO 模型。
+
+三轮 Self-Evolution 位于上述离线阶段之外。第 $k$ 轮以当前策略在训练场景回放，Critic 识别失败后形成新 Skill；只有质量分超过阈值且证据字段完整的样本才追加到记忆池。下一轮通过重采样增加这些失败的权重，并混入上一轮成功样本。若某类失败连续两轮不下降，则不继续盲目增加相同样本，而应检查特征表达、Critic 阈值或 chosen 构造是否存在系统偏差。本文中不安全跟车事件三轮保持 29 条，正属于需要修改模型表达而非单纯扩大权重的情形。
+
+\subsection{训练产物与版本关系}
+训练不是只生成一个“最终模型”。每次运行首先写出 \path{models/sft.json}、\path{models/reflection_sft.json} 和 \path{models/reflection_dpo.json}，它们分别对应三种可比较策略；三轮回放继续生成 \path{models/evolution_round_1.json} 至 \path{models/evolution_round_3.json}。\path{outputs/training_summary.json} 保存随机种子、平台、训练与验证规模、所有超参数候选、选中值、每轮失败类型、记忆池大小与运行耗时。\path{outputs/evolution_history.json} 提供供 Demo 读取的精简进化历史，\path{outputs/reflection_memory.jsonl} 保存逐条 Skill 证据。
+
+在真实 OpenDriveVLA 训练中，对应产物是 LoRA adapter 权重、\path{adapter_config.json}、tokenizer 增量、多模态投影与轨迹头参数。每个版本还应绑定基础 checkpoint 的名称与哈希、数据清单哈希、训练配置、代码提交号、验证指标和推理缓存。adapter 目录按阶段与时间命名，模型注册表记录其父版本关系；本地 Demo 可以加载远端产生的轨迹缓存或轻量导出参数，而不要求远程虚拟机持续在线。该版本结构支持从 DPO 回滚到 Reflection SFT，也能区分“基座升级”和“同一基座上的 Skill 更新”。
+
+\begin{table}[!htbp]
+\centering\small
+\caption{训练阶段、输入监督与主要产物}
+\begin{tabular}{P{0.17\textwidth}P{0.28\textwidth}P{0.28\textwidth}P{0.18\textwidth}}
+\toprule
+阶段 & 输入与监督 & 选择依据 & 主要产物 \\
+\midrule
+普通 SFT & 六相机、场景指令、专家 waypoint & 验证速度 MAE、L2 与综合分 & SFT adapter/策略参数 \\
+Reflection SFT & 专家监督、失败证据、加权 Reflection & 安全失败、舒适性与轨迹误差 & Reflection adapter、Skill 候选 \\
+DPO & chosen 修正轨迹与 rejected 失败轨迹 & 偏好目标和多指标验证 & DPO adapter、偏好统计 \\
+Self-Evolution & 当前策略 rollout、Critic、记忆回放 & 失败数、均分、记忆复用效果 & 轮次模型、历史与记忆池 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{训练过程的监控与异常判定}
+训练日志至少记录总 loss、轨迹 token loss、解释 token loss、学习率、梯度范数、有效 token 数、显存峰值和样本吞吐。验证日志额外记录非法轨迹比例、目标速度分布、空 Reflection 比例和各失败类型召回率。若训练 loss 持续下降而验证 L2 上升，说明模型在有限 scene 上过拟合；若 Safety 上升而 Comfort 和平均速度同时急剧下降，则可能形成停车策略；若 Reward 分数上升而 Rule 硬门槛失败增加，则可能发生奖励模型钻空子。上述异常均要求保留前一 checkpoint，而不是继续覆盖。
+
+轻量训练中的超参数网格搜索承担同样的监控作用。本文最终选择较大的岭系数 10，说明 mini 训练场景较少，需要更强正则抑制权重震荡；DPO 选择较小的 $\beta=0.03$，说明偏好更新不宜过强。验证目标把专家速度误差与综合分联合起来，避免单一 Safety 指标把极端低速误判为优化成功。训练摘要保留所有候选结果，使选定参数能够被复核，而不是只报告最佳模型。
+
 \section{评估协议与基准选择}
 \subsection{开放环规划基准}
 测试协议参考 ST-P3 与 UniAD 常用的 nuScenes 开放环规划设置，并与 OpenDriveVLA 论文表 I 的 1/2/3 秒 L2 指标对齐。本文轨迹为 12 个、间隔 0.5 s 的 waypoint；报告 1 s、2 s、3 s L2，三时刻平均 L2 及前三秒 ADE。由于当前轻量策略使用元数据特征且在 nuScenes-mini 上训练，数值不能与使用完整视觉网络和全量 trainval 的论文结果直接排名；论文数值仅用于量纲和差距分析。
@@ -317,10 +357,14 @@ DPO $\beta$ & 0.03/0.08/0.15 & 0.03 & 3.7961 & 偏好更新幅度最稳健 \\
 \subsection{可复现实验流程}
 实验固定随机种子 42。运行 \texttt{python scripts/train.py} 完成验证搜索、模型保存和三轮自进化；运行 \texttt{python scripts/evaluate.py} 在锁定测试集上产生 \path{outputs/metrics.json}；运行 \texttt{python -m unittest discover -s tests -q} 检查 schema、Critic、轨迹、行人冲突、评估聚合和前端 API。训练摘要记录平台、训练与验证规模、每个候选超参数、选定值、自进化历史与耗时。
 
-\clearpage
+\subsection{基准选择的合理性与互补性}
+ST-P3/UniAD 形式的 L2 指标便于与规划文献建立共同量纲，但它只衡量预测轨迹对日志专家的几何接近程度。Safety、Rule 和 Comfort 则直接描述动作属性，却依赖本文设定的阈值和中性先验。两类指标必须联合解释：SFT 的 L2 最低且综合分最高，说明其更接近专家平均行为；Reflection 系列安全失败为零但 L2 和 jerk 变差，说明其主要改变是提前保守制动。若只报告综合分，会掩盖舒适性代价；若只报告 L2，又会忽视行人失败被消除的收益。
+
+场景分组用于检验总体均值是否被简单样本主导。行人、近距前车与转弯组分别对应横向动态冲突、纵向交互和几何耦合，能够定位 Skill 对哪类失效有效。不利天气组在本次测试中覆盖全部两个测试 scene，因此不能作为独立泛化结论，只用于保留未来全量数据接口。Critic 一致性评估则回答评价器本身是否稳定，避免在策略分数变化时忽略评价器漂移。由此，轨迹误差、风险率、舒适性、场景分组、置信区间和 Critic 一致性构成互补的评价矩阵。
+
 \section{实验结果与分析}
 \subsection{主结果}
-\begin{table}[H]
+\begin{table}[!htbp]
 \centering\scriptsize
 \caption{场景隔离测试集上的轻量开放环结果（1,008 rollouts，56 个关键帧）}
 \begin{tabular}{lrrrrrrrr}
@@ -337,7 +381,7 @@ Reflection DPO & 0.00\% & 0.00\% & 0.00\% & 42.86\% & 100.000 & 69.611 & 93.922 
 
 普通 SFT 取得最好的综合折中：相对 Baseline，综合分提高 9.032，速度 MAE 下降 5.463 m/s，碰撞与规则风险降为 0；但仍有 12.50\% 的行人礼让失败。Reflection SFT 消除了当前规则模型中的行人失败，却引入 41.07\% 不舒适率，综合分反而低于普通 SFT。DPO 继续保持安全硬指标，但速度 MAE 和 jerk 进一步恶化，说明偏好对强化了保守动作。该结果符合多目标控制的基本矛盾：更早制动能提高安全余量，却可能偏离专家轨迹并降低舒适性。
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
 \centering
 \begin{tikzpicture}
 \begin{axis}[ybar,bar width=11pt,width=0.92\textwidth,height=7cm,ymin=0,ymax=105,
@@ -353,7 +397,7 @@ legend style={at={(0.5,-0.18)},anchor=north,legend columns=3},ylabel={得分},gr
 \end{figure}
 
 \subsection{轨迹误差与文献参照}
-\begin{table}[H]
+\begin{table}[!htbp]
 \centering\small
 \caption{1/2/3 秒规划 L2 误差（m）；文献行来自 OpenDriveVLA v2 表 I}
 \begin{tabular}{llrrrr}
@@ -374,10 +418,10 @@ legend style={at={(0.5,-0.18)},anchor=north,legend columns=3},ylabel={得分},gr
 
 SFT 在三个时间点均优于其余本地策略，但仍明显落后于完整 OpenDriveVLA 论文值。差距来源包括：本文只用 mini 的 6 个训练场景；轻量策略不编码图像像素；候选 rollout 的定义与官方测试集不同；局部坐标、插值和掩码细节也可能造成协议偏差。因此该对照的合理结论不是“复现失败”，而是明确下一阶段应把同一 Critic 与反思数据接入真实视觉网络。反思策略的 3 秒误差比 SFT 增加 1.438 m，表明当前安全修正对长期进度影响较大。
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
 \centering
 \begin{tikzpicture}
-\begin{axis}[width=0.90\textwidth,height=7cm,xlabel={预测时域（s）},ylabel={L2 误差（m）},xmin=0.8,xmax=3.2,ymin=0,ymax=10.5,xtick={1,2,3},grid=major,legend pos=north west]
+\begin{axis}[width=0.88\textwidth,height=5.4cm,xlabel={预测时域（s）},ylabel={L2 误差（m）},xmin=0.8,xmax=3.2,ymin=0,ymax=10.5,xtick={1,2,3},grid=major,legend pos=north west]
 \addplot[mark=o,thick,deepblue] coordinates {(1,1.451)(2,4.702)(3,9.583)};
 \addplot[mark=square,thick,teal] coordinates {(1,1.124)(2,3.356)(3,6.396)};
 \addplot[mark=triangle,thick,softorange] coordinates {(1,1.289)(2,4.054)(3,7.834)};
@@ -389,7 +433,7 @@ SFT 在三个时间点均优于其余本地策略，但仍明显落后于完整 
 \end{figure}
 
 \subsection{复杂场景分组}
-\begin{table}[H]
+\begin{table}[!htbp]
 \centering\scriptsize
 \caption{不同场景组的综合分与关键风险率}
 \begin{tabular}{llrrr}
@@ -420,7 +464,7 @@ SFT 在三个时间点均优于其余本地策略，但仍明显落后于完整 
 Baseline、SFT、Reflection SFT 和 Reflection DPO 的场景簇 95\% 置信区间分别为 [83.955, 91.792]、[94.743, 99.070]、[92.493, 96.423] 和 [91.856, 95.988]。SFT 与 Baseline 区间分离，说明改进并非只来自某一个候选 rollout；Reflection SFT 与 SFT 区间有重叠，不能据此宣称综合性能显著超过 SFT。相反，Reflection 的主要优势集中在已建模安全失败归零，而代价集中在舒适和轨迹拟合。
 
 \subsection{Critic 一致性}
-\begin{table}[H]
+\begin{table}[!htbp]
 \centering\small
 \caption{三类 Critic 与规则锚点的一致性}
 \begin{tabular}{lrrrrrr}
@@ -437,7 +481,7 @@ Reward Model & 511 & 86.167 & 11.088 & 6.166 & 0.8394 & 1.000 \\
 离线语言代理几乎保持 Rule 的排序，原因是它在确定性规则证据基础上加入有界扰动，适合检验接口和格式，但不能代表真实语言模型面对未知语义风险的能力。Reward Model 的标准差更小、MAE 更大，呈现典型的向均值回归，可能低估长尾严重失败。由此应保留规则硬门槛，并将 Reward 用于排序和软权重，而非独立决定样本是否安全。
 
 \subsection{三轮自进化}
-\begin{table}[H]
+\begin{table}[!htbp]
 \centering\small
 \caption{失败回放驱动的三轮自进化过程}
 \begin{tabular}{rrrrrr}
@@ -453,7 +497,7 @@ Reward Model & 511 & 86.167 & 11.088 & 6.166 & 0.8394 & 1.000 \\
 
 从第 1 到第 3 轮，均分提高 1.064，修订轨迹减少 80 条，行人失败减少 80 条；不安全跟车在三轮中均为 29 条，显示当前参数更新对这一小类错误尚未产生增量收益。第二轮改善大于第三轮，反映轻量策略逐渐接近其容量上限。记忆数持续增加不是性能本身，真正重要的是旧 Skill 是否在新场景被成功检索以及失败是否下降。后续应增加记忆去重、成功率衰减和场景覆盖约束。
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
 \centering
 \begin{tikzpicture}
 \begin{axis}[width=0.88\textwidth,height=6.8cm,xlabel={自进化轮次},ylabel={数量},xtick={1,2,3},ymin=0,ymax=2050,grid=major,legend pos=north west]
@@ -468,12 +512,34 @@ Reward Model & 511 & 86.167 & 11.088 & 6.166 & 0.8394 & 1.000 \\
 \subsection{消融结论}
 普通 SFT 相对 Baseline 的显著提升证明专家监督仍是能力基础。Reflection SFT 相对 SFT 消除了行人失败，证明失败加权和部署 guard 有效；但不舒适率上升，说明仅追求 Critic 安全项会造成奖励偏置。DPO 没有进一步提高综合分，表明当前 chosen/rejected 构造对“效率较高且安全”的正样本覆盖不足。工程上应将 SFT 作为默认策略，把 Reflection Skill 作为风险触发的局部修正，并在 DPO 偏好中加入进度、舒适与非必要制动惩罚。
 
-\clearpage
+\subsection{典型案例与错误传播分析}
+行人冲突案例中，Baseline 根据道路限速提高目标速度，但行人 annotation 后继链在约 2--3 秒进入自车走廊。Safety Critic 同时给出最小二维间距和时间差，Reflection 将根因标记为 \path{pedestrian_yield_failure}，纠正策略要求在冲突区前降低目标速度并保留全停余量。Reflection SFT 因此消除了测试集中的此类失败。横向无冲突案例则用于检查误触发：当行人轨迹始终位于车道走廊之外，风险函数返回无关，Reflection 策略与无行人参考场景保持相同目标速度。该对照防止“只要画面有人就停车”的错误 Skill。
+
+近距前车案例中，风险由自车与前车的相对速度决定。若只看当前距离，静止帧可能仍有安全余量；rollout 推进后，Baseline 目标速度使 TTC 快速下降。反思 guard 在每个 waypoint 更新前车位置并限制自车不能穿过动态安全边界，因此 Demo 中前车运动、轨迹评价和动画保持一致。三轮进化后仍有 29 条跟车失败，说明剩余错误可能来自急减速前车、弯道投影或轻量特征无法表达的横向关系。继续提高同类样本权重不会自动补充缺失信息。
+
+转弯案例同时包含道路曲率、行人横穿与前车位置，Baseline 风险率最高。SFT 能降低碰撞风险但仍有较高行人失败，Reflection 在安全项上改善更明显。错误传播链可概括为：场景特征低估横向交互，导致目标速度偏高；目标速度通过积分形成长期轨迹偏差；Safety 触发后采用统一减速，虽然避免冲突，却形成较高 jerk。改进方向应从单一目标速度回归扩展为分段加速度或多模态轨迹头，让纠正策略能够选择“减速、微调横向轨迹或改变通过时机”，而不是只有制动一个自由度。
+
+\subsection{敏感性与有效性威胁}
+质量阈值 0.58 决定多少 Reflection 进入训练池。阈值过低会接纳证据不足的文本，过高则丢失置信度较低但有价值的长尾失败；当前阈值依据置信度和证据覆盖的加权定义，在更大数据集上应通过验证曲线重新选择。Critic 权重 0.45/0.35/0.20 体现安全优先，但也会影响模型选择。本文额外报告未加权风险率、Comfort 和 L2，使结论不完全依赖单一权重组合。
+
+内部有效性方面，测试场景与训练场景按 token 隔离，但 18 个 rollout 共享同一关键帧，故使用关键帧簇置信区间；若把 rollout 当独立样本，区间会虚假变窄。构念有效性方面，碰撞风险、红灯与舒适阈值是代理量，不能等同真实事故、交通法规或乘员感受。外部有效性方面，mini 只有 10 个 scene，当前结论不直接推广到全量 nuScenes、CARLA 或道路部署。比较有效性方面，论文数值来自不同训练数据和完整视觉网络，只用作参照而非显著性排名。
+
+结果还受到模型容量限制。LiteVLA 能验证特征到轨迹、Critic 和 Skill 的闭环，却不处理遮挡、像素级语义和视觉不确定性；因此其失败分布可能比完整 VLA 更偏向规则和运动学。完整基座训练后，应重新运行同一场景隔离评估，并检查视觉模型是否减少 L2 的同时引入新的语义误判。只有数据划分、指标实现和 Critic 阈值保持一致，前后两阶段结果才具有可解释的继承关系。
+
+\subsection{由实验结果导出的训练改进策略}
+第一项改进是把 Reflection guard 从全局固定规则改为条件化 Skill。当前 Reflection SFT 在测试集中消除了行人和跟车安全失败，但对无风险场景也可能降低速度。后续可训练一个轻量触发头，以场景特征、Critic 不确定性和检索 Skill 相似度为输入，只有触发概率超过阈值时才调用纠正策略。触发头的评价不只看分类准确率，还应特别报告假阳性导致的非必要制动率和假阴性导致的严重失败漏检率。
+
+第二项改进是扩大动作空间。现有轻量策略主要通过目标速度改变轨迹，遇到横穿行人或弯道障碍时往往只能制动。完整 OpenDriveVLA 训练应直接监督二维 waypoint 或轨迹 token，使模型能够在道路可行域内选择横向微调、延后通过和渐进减速。chosen 轨迹应来自专家未来 pose、运动学安全修正和闭环验证中较优者，rejected 则保留原失败动作；如果 chosen 只由统一减速规则产生，DPO 必然继续强化保守偏置。
+
+第三项改进是把 Critic 校准纳入每轮自进化。Reward Model 在当前数据上的 Rule MAE 为 6.166、相关系数为 0.8394，说明其能够提供粗排序但不足以单独承担安全筛选。每轮新增 Skill 后，应固定一部分旧场景作为校准集，比较 Reward 与规则锚点的误差、严重失败召回率和分布漂移；若校准退化，则回滚 Reward 版本或提高规则权重。LLM Critic 的线上版本同样需要固定模型、温度、JSON schema 和响应缓存，避免评价器变化被误认为策略进化。
+
+第四项改进是把自进化停止条件从固定轮数改为多指标判据。当连续两轮的失败下降小于最小改善量，或 Safety 收益被 Comfort、L2 和路线进度退化抵消时，应停止自动更新并进入人工审计。本文从第二轮到第三轮的均分增量由 0.823 降至 0.241，已经出现边际收益下降；继续训练前更合理的工作是检查 29 条稳定跟车失败的共同特征。该原则可以防止系统为了“完成更多轮次”而重复写入近似 Skill。
+
 \section{系统演示与工程实现}
 \subsection{动态系统架构}
 Demo 由 HTML、CSS 和 JavaScript 三件套前端与 Python API 后端组成。前端只负责场景控制、轨迹动画、相机图像、分数和 Skill 反思可视化；场景、轨迹、Critic 和 Reflection 均来自实时 API。后端从 5,112 条数据索引中按预设类型、scene id 或随机偏移选择记录，加载当前策略参数，执行规划与评价，并返回原始来源字段。命令行仅输出请求、场景、策略、评分和状态等人类可读摘要，完整结构化事件保留在调试 API 中，不占用前端视图。
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
 \centering
 \resizebox{0.98\textwidth}{!}{%
 \begin{tikzpicture}[node distance=8mm and 9mm,scale=0.94,transform shape]
@@ -496,9 +562,9 @@ Demo 由 HTML、CSS 和 JavaScript 三件套前端与 Python API 后端组成。
 \subsection{Skill 反思展示}
 页面把一次推理分成场景感知、Baseline 规划、Critic 诊断、Reflection、重规划与 Skill 沉淀。用户可以展开根因、数值证据、纠正策略、反事实动作和置信度；当前场景若与历史 Skill 匹配，页面展示其触发条件与复用依据。分数不是 JavaScript 常量，而是后端以规则 Critic 65\%、训练后的 Reward Critic 25\% 和训练集 7 近邻校准 10\% 实时融合。
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
 \centering
-\includegraphics[width=0.92\textwidth,height=0.79\textheight,keepaspectratio]{../docs/assets/demo_skill_dashboard.png}
+\includegraphics[width=0.72\textwidth,height=0.43\textheight,keepaspectratio]{../docs/assets/demo_skill_dashboard.png}
 \caption{动态 Demo 实运行页面：nuScenes 场景、双策略轨迹、Critic 与 Skill 反思}
 \end{figure}
 
@@ -512,7 +578,6 @@ Demo 由 HTML、CSS 和 JavaScript 三件套前端与 Python API 后端组成。
 \end{itemize}
 API 包含 \path{/api/data/status}、\path{/api/scenarios}、\path{/api/scenario} 和 \path{/api/logs}。使用文档不记录个人 Python 路径、Hugging Face token 或本机用户名；大模型权重和原始 nuScenes 压缩包不提交 GitHub，README 给出基座、数据与依赖获取说明。
 
-\clearpage
 \section{讨论}
 \subsection{反思何时真正有效}
 本实验表明，Reflection 对明确、可计算的长尾风险最有效，例如行人轨迹与自车走廊在时间上重合、前车 TTC 低于阈值。此时证据能够直接导出“提前减速并保留停车余量”的动作。对弯道几何、遮挡物或未建模交通参与者，当前结构化特征不足，反思可能只是保守降速。有效反思需要三项条件：Critic 能观察到真正原因；纠正动作在策略参数空间中可表达；训练目标同时约束安全与效率。
@@ -526,7 +591,6 @@ OpenDriveVLA 原论文 0.5B 的 ST-P3 平均 L2 为 0.35 m、平均碰撞率为 
 \subsection{工程轻量化的意义}
 轻量化并非省略基座，而是把难以在本机运行的视觉前向与可独立验证的闭环机制解耦。数据溯源、Critic、Reflection、Skill 记忆、训练选择、评估与 Demo 均可在 CPU 上测试；GPU 到位后，只需替换 Planner 的基座前向并加载 LoRA adapter。训练后的 adapter、配置、tokenizer 增量、评估 JSON 和轨迹缓存可以从虚拟机复制回本地，本地 Demo 通过模型注册表切换版本，无需每次登录远程环境。
 
-\clearpage
 \section{局限、风险与后续工作}
 第一，当前未执行 OpenDriveVLA 完整视觉权重的 CUDA 前向或 LoRA 训练，轻量实验验证的是自进化机制和接口，而非官方视觉性能复现。第二，nuScenes-mini 只有 10 个场景，场景分组样本有限，转弯、稀有天气与密集交互覆盖不足。第三，交通灯、停止线和限速使用中性先验，不能支持真实规则识别结论。第四，Reward Model 为低容量回归器，容易低估极端风险；离线语言代理用于接口可复现，不等价于真实 LLM Critic。第五，开放环指标无法反映闭环动力学和他车反应。
 
@@ -534,13 +598,11 @@ OpenDriveVLA 原论文 0.5B 的 ST-P3 平均 L2 为 0.35 m、平均碰撞率为 
 
 真实车辆部署必须保留独立安全层、紧急制动、数据分布监控、失败回退和模型版本回滚。自动 Reflection 不应直接作为无监督在线更新依据；任何进入生产模型的 Skill 都应通过规则门槛、离线回放、仿真验证与人工复核。
 
-\clearpage
 \section{结论}
 本文完成了以 OpenDriveVLA-0.5B 为必要基座的自动驾驶 VLA 自进化原型。系统从官方 nuScenes v1.0-mini 抽取 284 个完整关键帧和 5,112 条可追溯 rollout，建立 Safety、Rule、Comfort 多 Critic、结构化 Reflection、Skill 记忆、SFT、Reflection SFT、DPO 和三轮失败回放闭环。场景隔离测试表明，普通 SFT 提供最优综合性能，Reflection 系列能消除当前规则边界内的安全失败，但会付出舒适性和轨迹精度代价。这一结果既验证了反思反馈可转化为训练信号，也揭示了自进化系统必须处理的奖励偏置。
 
 工程实现保持了轻量实验与完整基座训练之间的数据和接口一致性。Windows CPU 环境可以运行训练、评估、动态 API 和 Demo；Linux/CUDA 环境可加载相同六相机记录和 OpenDriveVLA checkpoint 执行 PEFT。报告、代码、可追溯数据、模型参数、指标、测试与使用文档共同构成可复现交付。未来工作的核心不是继续堆叠反思文本，而是把真实视觉、闭环交互和可验证安全约束纳入同一自进化循环。
 
-\clearpage
 \section*{参考文献与代码}
 \addcontentsline{toc}{section}{参考文献与代码}
 [1] Zhou X. et al. OpenDriveVLA: Towards End-to-end Autonomous Driving with Large Vision Language Action Model. arXiv:2503.23463, 2025. \url{https://arxiv.org/abs/2503.23463}\par
@@ -557,10 +619,11 @@ OpenDriveVLA 原论文 0.5B 的 ST-P3 平均 L2 为 0.35 m、平均碰撞率为 
 [12] Physical Superintelligence Lab. Agent-Driver. \url{https://github.com/physical-superintelligence-lab/Agent-Driver}\par
 
 \appendix
-\clearpage
 \section{数据字段与溯源示例}
 一条反思记录由 \texttt{id}、\texttt{split}、\texttt{scenario}、\texttt{trajectory}、\texttt{critic}、\texttt{reflection}、\texttt{quality} 与 \texttt{source} 组成。\texttt{scenario} 保存自车、前车、行人、曲率、天气、导航和规则条件；\texttt{trajectory} 保存 12 个 waypoint、目标速度、策略版本和规划依据；\texttt{critic} 保存三维分数、综合分、失败标签与证据；\texttt{reflection} 保存根因和纠正；\texttt{source} 连接原始 nuScenes。
 
+{\footnotesize
+\renewcommand{\arraystretch}{1.05}
 \begin{longtable}{P{0.22\textwidth}P{0.64\textwidth}}
 \caption{关键数据字段说明}\\
 \toprule
@@ -581,20 +644,17 @@ OpenDriveVLA 原论文 0.5B 的 ST-P3 平均 L2 为 0.35 m、平均碰撞率为 
 \texttt{evidence} & TTC、最小间距、速度差、规则余量、jerk 等可复核量。\\
 \texttt{accepted} & 反思质量是否通过 0.58 阈值及硬规则门槛。\\
 \end{longtable}
+}
 
-\clearpage
 \section{训练与评估产物}
-\begin{longtable}{P{0.28\textwidth}P{0.56\textwidth}}
-\caption{主要可复现产物及用途}\\
+\begin{center}
+\scriptsize
+\renewcommand{\arraystretch}{0.96}
+\captionof{table}{主要可复现产物及用途}
+\begin{tabular}{P{0.29\textwidth}P{0.57\textwidth}}
 \toprule
 路径 & 内容 \\
 \midrule
-\endfirsthead
-\toprule 路径 & 内容 \\
-\midrule
-\endhead
-\bottomrule
-\endfoot
 \path{data/reflection_dataset.jsonl} & 5,112 条 nuScenes 可追溯 Trajectory--Critic--Reflection 记录。\\
 \path{models/sft.json} & 验证集选择后的普通 SFT 轻量策略参数。\\
 \path{models/reflection_sft.json} & 失败加权 Reflection SFT 参数。\\
@@ -607,23 +667,30 @@ OpenDriveVLA 原论文 0.5B 的 ST-P3 平均 L2 为 0.35 m、平均碰撞率为 
 \path{scripts/train_opendrivevla_peft.py} & OpenDriveVLA-0.5B LoRA/PEFT 完整训练入口。\\
 \path{scripts/run_demo.py} & 动态后端与网页服务入口。\\
 \path{tests/test_core.py} & schema、Critic、规划、反思、评估和 API 回归测试。\\
-\end{longtable}
+\bottomrule
+\end{tabular}
+\end{center}
 
-\clearpage
-\section{完整视觉训练与模型回传建议}
-建议在 Ubuntu 22.04、Python 3.10、NVIDIA Driver、CUDA 12.x 与匹配的 PyTorch CUDA wheel 环境中运行。先单独安装 PyTorch，再安装 Transformers、Accelerate、PEFT 和项目依赖；DeepSpeed 只在 Linux 多卡训练时安装。将 OpenDriveVLA-0.5B 权重置于配置指定目录，运行 \texttt{--check-only} 确认权重、tokenizer、官方代码、六相机文件和 JSONL 均可访问，再启动 SFT、Reflection SFT 与 DPO。
+这些产物构成从训练输入到实验结论的完整证据链。数据文件提供场景、专家轨迹和 Reflection 监督；三个策略参数文件对应主实验中的可比较模型；轮次模型与进化历史记录失败回放后的变化；训练摘要保存模型选择过程；最终指标文件只读取锁定测试集。报告中的表格数值均能够在上述 JSON 文件中定位到相应字段。
 
-训练完成后应保存：LoRA adapter 权重、\texttt{adapter\_config.json}、tokenizer 增量、训练配置、基础模型精确版本、随机种子、训练日志、验证指标和推理轨迹缓存。将这些小文件复制回本地 \path{models/opendrivevla_adapters/version-id/}，在模型注册表中记录 adapter 路径与 checkpoint 哈希。本地若无法运行完整视觉前向，可以直接回放远端生成的轨迹缓存；若 CPU 内存足够，也可尝试量化推理，但速度不适合实时演示。这样训练和推理产物均留存在项目目录，不依赖虚拟机长期在线。
+协作者复现时不需要重新下载或抽取数据。执行训练入口会覆盖轻量策略参数和训练摘要，执行评估入口会刷新最终指标，Demo 随后读取这些最新产物。若只需要演示，可以直接使用仓库中已提交的 JSONL、模型参数和指标；若切换到 GPU OpenDriveVLA adapter，则保留相同文件命名和策略注册接口，使前端无需改变。
 
-\clearpage
-\section{复现实验检查表}
-\begin{enumerate}
-  \item 检查 \texttt{data/reflection\_dataset.jsonl} 存在且记录数为 5,112；随机抽样确认 sample token、六相机引用与 annotation token 非空。
-  \item 执行训练脚本，确认验证搜索只读取 train/val，生成三个策略模型和三轮 evolution 模型。
-  \item 执行评估脚本，确认测试集为 1,008 个 rollout、56 个独立关键帧，且输出场景簇置信区间。
-  \item 执行 23 项回归测试，检查横向无冲突行人不会触发减速、动态行人和前车轨迹不会与规划逻辑脱节。
-  \item 启动 Demo，分别选择真实路口、行人运动、近距前车和转弯场景，核对 CAM\_FRONT、双轨迹、分数、反思与 Skill 均随 API 响应变化。
-  \item 完整视觉训练前执行 \texttt{--check-only}；训练后保存 adapter、配置、哈希、指标和缓存，再在本地模型注册表中切换版本。
-\end{enumerate}
+产物管理遵循“模型、配置、数据清单和指标共同版本化”的原则。单独复制某个 adapter 而缺少基础模型版本或 tokenizer，可能无法复现输出；单独保存总体分而缺少分组指标，则无法判断改进来自何种场景。因而每次正式实验应同时归档模型参数、训练摘要、评估指标、代码提交号以及必要的推理缓存。
+
+加载阶段采用确定性的依赖顺序。系统首先读取模型注册信息并核对 OpenDriveVLA-0.5B 基座目录，其次恢复 tokenizer 与新增动作 token，再加载 PEFT adapter 或轻量策略参数，最后载入 Skill 记忆和评估配置。若某一层缺失，加载器应停止并报告具体路径，而不应静默退化到随机初始化模型。对本地 CPU 演示而言，策略 JSON、训练摘要和数据清单足以恢复已验证的闭环接口；对 CUDA 视觉推理而言，还必须同时提供基座权重、processor 配置、adapter 权重与精度设置。
+
+完整性校验至少覆盖三类一致性。其一是数据一致性：比较 JSONL 条数、场景划分摘要、sample token 去重结果和相机引用可达率，避免训练集与测试集交叉。其二是模型一致性：记录基座标识、adapter 配置、训练轮次、随机种子及关键超参数，并对核心文件计算摘要值。其三是指标一致性：评估脚本从锁定测试集重新计算 Overall、Safety、Rule、Comfort、L2 与场景分组结果，再与归档的 \path{outputs/metrics.json} 对照。只有三类检查均通过时，该版本才进入 Demo 的可选模型列表。
+
+版本回退以“模型产物与行为证据成对恢复”为单位。当新一轮自进化在验证集上提高安全分却显著恶化舒适性或轨迹误差时，训练器保留上一轮参数，不覆盖稳定版本；同时把失败样本、Critic 证据和超参数差异写入进化历史。这样既能防止单一奖励造成性能倒退，也使协作者能够从某个演示结果追溯到相应数据、策略与评估记录。该机制把模型保存从简单文件复制提升为可审计的实验版本管理。
+
+从训练环境向本地演示环境迁移时，应先在训练端冻结最终版本并生成交付清单。清单至少包含基座模型名称与版本、adapter 相对路径、tokenizer 文件、模型精度、训练配置、数据版本、验证集最优轮次和测试指标。随后将这些文件复制到本地项目约定目录，通过模型注册配置声明可用版本。Demo 后端只依赖注册项选择推理器，不把远程虚拟机路径写入代码，因此迁移后无需修改前端，也无需重新连接训练环境。
+
+视觉模型的迁移包与轻量策略的迁移包具有不同边界。前者保存 LoRA 的 \path{adapter_model.safetensors}、\path{adapter_config.json}、新增 token、processor 配置以及基座标识；考虑到基座权重体积较大，交付仓库只记录公开下载地址和摘要，协作者在本地按说明放置。后者保存 \path{models/*.json} 与训练摘要，体积小，可直接随代码版本管理。两类产物使用相同的规划响应 schema，使 CPU 模式和视觉模式都能向 Critic、Skill 记忆与网页端输出一致字段。
+
+部署前的烟雾测试不追求完整 benchmark，而是验证产物能否被正确消费。测试依次执行配置解析、模型加载、单条样本前向、轨迹点数量检查、目标速度范围检查、Critic 重评分、Reflection 生成和 API 序列化。对视觉版本还需确认六相机引用与 processor 输入顺序一致，并检查显存峰值是否落在运行环境预算内。任一检查失败时，系统不把该版本标记为可演示，以避免页面展示与实际模型脱节。
+
+正式验收再使用锁定测试集评估整体与分场景指标。除均值外，应检查碰撞代理、行人让行、跟车距离、规则违例、舒适性、L2 轨迹误差以及置信区间；对失败率较高的场景抽取对应 sample token，回查相机图像、标注、Critic 证据和 Reflection。若总体分改善仅来自简单直道，而复杂交互退化，则不能仅凭平均值替换稳定模型。模型晋级应同时满足安全门槛、性能约束和可追溯性要求。
+
+运行期产物也需要持续沉淀。Demo 每次推理可记录模型版本、场景标识、输入摘要、规划输出、Critic 分数、命中的 Skill 和耗时；这些记录不在前端展示复杂日志，但可由后端用于问题定位。经人工复核的高价值失败样本能够重新进入下一轮自进化候选池，未经核验的在线记录不能直接更新模型。由此形成“训练归档—离线验收—本地部署—行为回放—下一轮训练”的闭环，同时保留清晰的人机责任边界。
 
 \end{document}
