@@ -32,7 +32,7 @@ Windows 也可直接双击 `启动Demo.bat`。新版驾驶台从完整训练数�
 - Self-Evolution：`scripts/train.py` 实现 Baseline、SFT、失败样本加权 Reflection SFT 及偏好优化 DPO。
 - 多轮进化：本地执行三轮 rollout→Critic→Reflection→失败记忆回放，历史写入 `outputs/evolution_history.json`，经验池写入 `outputs/reflection_memory.jsonl`。
 - 完整训练接口：`scripts/train_opendrivevla_peft.py` 提供 LoRA/PEFT 训练入口，Windows 可用 `--check-only` 验证。
-- 实验评估：`scripts/evaluate.py` 输出碰撞风险、违章、礼让失败、舒适性与策略误差，并标记未见场景测试集。
+- 实验评估：`scripts/evaluate.py` 在 scene 隔离测试集上输出 1/2/3 秒轨迹 L2、碰撞风险、违章、礼让失败、舒适性、场景簇 95% 置信区间和 Critic 一致性；`outputs/training_summary.json` 保存验证集超参数选择与三轮自进化历史，`outputs/metrics.json` 保存最终测试结果。
 - Demo：`demo/index.html` + `demo/styles.css` + `demo/app.js` + `scripts/run_demo.py`，通过 Python API 动态生成双轨迹、Critic、Reflection 与自进化历史。
 - 基座查验与适配：`scripts/audit_opendrivevla.py` 检查本地资产，`scripts/import_opendrivevla_outputs.py` 将官方 `plan_conv.json` 转为 Demo 可回放缓存。
 - 完整报告：主交付为 `report/自动驾驶VLA自进化研究报告.tex` 与

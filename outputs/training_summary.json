@@ -1,0 +1,744 @@
+{
+  "experiment": "nuScenes-mini lightweight Reflection self-evolution",
+  "seed": 42,
+  "platform": "Windows-11-10.0.22621-SP0",
+  "train_accepted": 1881,
+  "validation_rollouts": 1044,
+  "ridge_search": {
+    "sft": [
+      {
+        "ridge": 0.01,
+        "metrics": {
+          "policy": "sft",
+          "samples": 1044,
+          "unique_keyframes": 58,
+          "collision_risk_rate": 0.0517,
+          "traffic_violation_rate": 0.0,
+          "pedestrian_yield_failure_rate": 0.069,
+          "uncomfortable_rate": 0.0,
+          "safety_score": 96.044,
+          "rule_score": 100.0,
+          "comfort_score": 100.0,
+          "overall_score": 98.22,
+          "target_speed_mae": 7.804,
+          "mean_abs_jerk": 0.369,
+          "overall_95ci": [
+            96.593,
+            99.847
+          ],
+          "scenario_breakdown": {
+            "pedestrian": {
+              "samples": 270,
+              "overall_score": 93.4,
+              "collision_risk_rate": 0.0,
+              "pedestrian_failure_rate": 0.2667
+            },
+            "close_lead": {
+              "samples": 774,
+              "overall_score": 97.599,
+              "collision_risk_rate": 0.0698,
+              "pedestrian_failure_rate": 0.093
+            },
+            "turn": {
+              "samples": 432,
+              "overall_score": 95.831,
+              "collision_risk_rate": 0.0833,
+              "pedestrian_failure_rate": 0.1667
+            },
+            "adverse_weather": {
+              "samples": 522,
+              "overall_score": 100.0,
+              "collision_risk_rate": 0.0,
+              "pedestrian_failure_rate": 0.0
+            },
+            "all": {
+              "samples": 1044,
+              "overall_score": 98.22,
+              "collision_risk_rate": 0.0517,
+              "pedestrian_failure_rate": 0.069
+            }
+          },
+          "planning_l2_m": {
+            "1s": 1.935,
+            "2s": 6.18,
+            "3s": 12.038,
+            "avg_1_2_3s": 6.717,
+            "ade_3s": 5.591
+          },
+          "selection_objective": 7.8574
+        }
+      },
+      {
+        "ridge": 0.1,
+        "metrics": {
+          "policy": "sft",
+          "samples": 1044,
+          "unique_keyframes": 58,
+          "collision_risk_rate": 0.0517,
+          "traffic_violation_rate": 0.0,
+          "pedestrian_yield_failure_rate": 0.0862,
+          "uncomfortable_rate": 0.0,
+          "safety_score": 95.043,
+          "rule_score": 100.0,
+          "comfort_score": 100.0,
+          "overall_score": 97.769,
+          "target_speed_mae": 7.204,
+          "mean_abs_jerk": 0.347,
+          "overall_95ci": [
+            95.968,
+            99.57
+          ],
+          "scenario_breakdown": {
+            "pedestrian": {
+              "samples": 270,
+              "overall_score": 91.75,
+              "collision_risk_rate": 0.0,
+              "pedestrian_failure_rate": 0.3333
+            },
+            "close_lead": {
+              "samples": 774,
+              "overall_score": 96.991,
+              "collision_risk_rate": 0.0698,
+              "pedestrian_failure_rate": 0.1163
+            },
+            "turn": {
+              "samples": 432,
+              "overall_score": 94.642,
+              "collision_risk_rate": 0.0833,
+              "pedestrian_failure_rate": 0.2083
+            },
+            "adverse_weather": {
+              "samples": 522,
+              "overall_score": 100.0,
+              "collision_risk_rate": 0.0,
+              "pedestrian_failure_rate": 0.0
+            },
+            "all": {
+              "samples": 1044,
+              "overall_score": 97.769,
+              "collision_risk_rate": 0.0517,
+              "pedestrian_failure_rate": 0.0862
+            }
+          },
+          "planning_l2_m": {
+            "1s": 1.847,
+            "2s": 5.921,
+            "3s": 11.544,
+            "avg_1_2_3s": 6.437,
+            "ade_3s": 5.357
+          },
+          "selection_objective": 7.2709
+        }
+      },
+      {
+        "ridge": 1.0,
+        "metrics": {
+          "policy": "sft",
+          "samples": 1044,
+          "unique_keyframes": 58,
+          "collision_risk_rate": 0.0517,
+          "traffic_violation_rate": 0.0,
+          "pedestrian_yield_failure_rate": 0.1897,
+          "uncomfortable_rate": 0.0,
+          "safety_score": 88.688,
+          "rule_score": 100.0,
+          "comfort_score": 100.0,
+          "overall_score": 94.91,
+          "target_speed_mae": 6.297,
+          "mean_abs_jerk": 0.323,
+          "overall_95ci": [
+            92.401,
+            97.418
+          ],
+          "scenario_breakdown": {
+            "pedestrian": {
+              "samples": 270,
+              "overall_score": 81.85,
+              "collision_risk_rate": 0.0,
+              "pedestrian_failure_rate": 0.7333
+            },
+            "close_lead": {
+              "samples": 774,
+              "overall_score": 93.134,
+              "collision_risk_rate": 0.0698,
+              "pedestrian_failure_rate": 0.2558
+            },
+            "turn": {
+              "samples": 432,
+              "overall_score": 87.698,
+              "collision_risk_rate": 0.125,
+              "pedestrian_failure_rate": 0.4583
+            },
+            "adverse_weather": {
+              "samples": 522,
+              "overall_score": 100.0,
+              "collision_risk_rate": 0.0,
+              "pedestrian_failure_rate": 0.0
+            },
+            "all": {
+              "samples": 1044,
+              "overall_score": 94.91,
+              "collision_risk_rate": 0.0517,
+              "pedestrian_failure_rate": 0.1897
+            }
+          },
+          "planning_l2_m": {
+            "1s": 1.771,
+            "2s": 5.674,
+            "3s": 11.076,
+            "avg_1_2_3s": 6.174,
+            "ade_3s": 5.136
+          },
+          "selection_objective": 6.4497
+        }
+      },
+      {
+        "ridge": 10.0,
+        "metrics": {
+          "policy": "sft",
+          "samples": 1044,
+          "unique_keyframes": 58,
+          "collision_risk_rate": 0.0517,
+          "traffic_violation_rate": 0.0,
+          "pedestrian_yield_failure_rate": 0.1897,
+          "uncomfortable_rate": 0.0,
+          "safety_score": 88.484,
+          "rule_score": 100.0,
+          "comfort_score": 100.0,
+          "overall_score": 94.818,
+          "target_speed_mae": 5.9,
+          "mean_abs_jerk": 0.318,
+          "overall_95ci": [
+            92.301,
+            97.334
+          ],
+          "scenario_breakdown": {
+            "pedestrian": {
+              "samples": 270,
+              "overall_score": 81.85,
+              "collision_risk_rate": 0.0,
+              "pedestrian_failure_rate": 0.7333
+            },
+            "close_lead": {
+              "samples": 774,
+              "overall_score": 93.01,
+              "collision_risk_rate": 0.0698,
+              "pedestrian_failure_rate": 0.2558
+            },
+            "turn": {
+              "samples": 432,
+              "overall_score": 87.477,
+              "collision_risk_rate": 0.125,
+              "pedestrian_failure_rate": 0.4583
+            },
+            "adverse_weather": {
+              "samples": 522,
+              "overall_score": 100.0,
+              "collision_risk_rate": 0.0,
+              "pedestrian_failure_rate": 0.0
+            },
+            "all": {
+              "samples": 1044,
+              "overall_score": 94.818,
+              "collision_risk_rate": 0.0517,
+              "pedestrian_failure_rate": 0.1897
+            }
+          },
+          "planning_l2_m": {
+            "1s": 1.731,
+            "2s": 5.492,
+            "3s": 10.668,
+            "avg_1_2_3s": 5.964,
+            "ade_3s": 4.965
+          },
+          "selection_objective": 6.0555
+        }
+      }
+    ],
+    "reflection_sft": [
+      {
+        "ridge": 0.01,
+        "metrics": {
+          "policy": "reflection_sft",
+          "samples": 1044,
+          "unique_keyframes": 58,
+          "collision_risk_rate": 0.0172,
+          "traffic_violation_rate": 0.0,
+          "pedestrian_yield_failure_rate": 0.0,
+          "uncomfortable_rate": 0.4138,
+          "safety_score": 99.948,
+          "rule_score": 100.0,
+          "comfort_score": 64.465,
+          "overall_score": 92.87,
+          "target_speed_mae": 7.756,
+          "mean_abs_jerk": 1.998,
+          "overall_95ci": [
+            90.556,
+            95.183
+          ],
+          "scenario_breakdown": {
+            "pedestrian": {
+              "samples": 270,
+              "overall_score": 91.186,
+              "collision_risk_rate": 0.0,
+              "pedestrian_failure_rate": 0.0
+            },
+            "close_lead": {
+              "samples": 774,
+              "overall_score": 94.645,
+              "collision_risk_rate": 0.0233,
+              "pedestrian_failure_rate": 0.0
+            },
+            "turn": {
+              "samples": 432,
+              "overall_score": 90.268,
+              "collision_risk_rate": 0.0417,
+              "pedestrian_failure_rate": 0.0
+            },
+            "adverse_weather": {
+              "samples": 522,
+              "overall_score": 100.0,
+              "collision_risk_rate": 0.0,
+              "pedestrian_failure_rate": 0.0
+            },
+            "all": {
+              "samples": 1044,
+              "overall_score": 92.87,
+              "collision_risk_rate": 0.0172,
+              "pedestrian_failure_rate": 0.0
+            }
+          },
+          "planning_l2_m": {
+            "1s": 1.957,
+            "2s": 6.375,
+            "3s": 12.53,
+            "avg_1_2_3s": 6.954,
+            "ade_3s": 5.782
+          },
+          "selection_objective": 7.9699
+        }
+      },
+      {
+        "ridge": 0.1,
+        "metrics": {
+          "policy": "reflection_sft",
+          "samples": 1044,
+          "unique_keyframes": 58,
+          "collision_risk_rate": 0.0345,
+          "traffic_violation_rate": 0.0,
+          "pedestrian_yield_failure_rate": 0.0,
+          "uncomfortable_rate": 0.4655,
+          "safety_score": 99.917,
+          "rule_score": 100.0,
+          "comfort_score": 59.54,
+          "overall_score": 91.871,
+          "target_speed_mae": 7.399,
+          "mean_abs_jerk": 1.956,
+          "overall_95ci": [
+            89.515,
+            94.226
+          ],
+          "scenario_breakdown": {
+            "pedestrian": {
+              "samples": 270,
+              "overall_score": 87.377,
+              "collision_risk_rate": 0.0,
+              "pedestrian_failure_rate": 0.0
+            },
+            "close_lead": {
+              "samples": 774,
+              "overall_score": 93.685,
+              "collision_risk_rate": 0.0465,
+              "pedestrian_failure_rate": 0.0
+            },
+            "turn": {
+              "samples": 432,
+              "overall_score": 87.854,
+              "collision_risk_rate": 0.0833,
+              "pedestrian_failure_rate": 0.0
+            },
+            "adverse_weather": {
+              "samples": 522,
+              "overall_score": 100.0,
+              "collision_risk_rate": 0.0,
+              "pedestrian_failure_rate": 0.0
+            },
+            "all": {
+              "samples": 1044,
+              "overall_score": 91.871,
+              "collision_risk_rate": 0.0345,
+              "pedestrian_failure_rate": 0.0
+            }
+          },
+          "planning_l2_m": {
+            "1s": 1.911,
+            "2s": 6.278,
+            "3s": 12.311,
+            "avg_1_2_3s": 6.833,
+            "ade_3s": 5.681
+          },
+          "selection_objective": 7.6429
+        }
+      },
+      {
+        "ridge": 1.0,
+        "metrics": {
+          "policy": "reflection_sft",
+          "samples": 1044,
+          "unique_keyframes": 58,
+          "collision_risk_rate": 0.0517,
+          "traffic_violation_rate": 0.0,
+          "pedestrian_yield_failure_rate": 0.0,
+          "uncomfortable_rate": 0.4483,
+          "safety_score": 99.582,
+          "rule_score": 100.0,
+          "comfort_score": 59.114,
+          "overall_score": 91.635,
+          "target_speed_mae": 6.472,
+          "mean_abs_jerk": 1.621,
+          "overall_95ci": [
+            89.161,
+            94.108
+          ],
+          "scenario_breakdown": {
+            "pedestrian": {
+              "samples": 270,
+              "overall_score": 83.048,
+              "collision_risk_rate": 0.0,
+              "pedestrian_failure_rate": 0.0
+            },
+            "close_lead": {
+              "samples": 774,
+              "overall_score": 93.35,
+              "collision_risk_rate": 0.0698,
+              "pedestrian_failure_rate": 0.0
+            },
+            "turn": {
+              "samples": 432,
+              "overall_score": 84.783,
+              "collision_risk_rate": 0.125,
+              "pedestrian_failure_rate": 0.0
+            },
+            "adverse_weather": {
+              "samples": 522,
+              "overall_score": 100.0,
+              "collision_risk_rate": 0.0,
+              "pedestrian_failure_rate": 0.0
+            },
+            "all": {
+              "samples": 1044,
+              "overall_score": 91.635,
+              "collision_risk_rate": 0.0517,
+              "pedestrian_failure_rate": 0.0
+            }
+          },
+          "planning_l2_m": {
+            "1s": 1.838,
+            "2s": 5.997,
+            "3s": 11.655,
+            "avg_1_2_3s": 6.497,
+            "ade_3s": 5.408
+          },
+          "selection_objective": 6.7229
+        }
+      },
+      {
+        "ridge": 10.0,
+        "metrics": {
+          "policy": "reflection_sft",
+          "samples": 1044,
+          "unique_keyframes": 58,
+          "collision_risk_rate": 0.0517,
+          "traffic_violation_rate": 0.0,
+          "pedestrian_yield_failure_rate": 0.0,
+          "uncomfortable_rate": 0.431,
+          "safety_score": 99.322,
+          "rule_score": 100.0,
+          "comfort_score": 60.772,
+          "overall_score": 91.849,
+          "target_speed_mae": 6.062,
+          "mean_abs_jerk": 1.394,
+          "overall_95ci": [
+            89.336,
+            94.362
+          ],
+          "scenario_breakdown": {
+            "pedestrian": {
+              "samples": 270,
+              "overall_score": 82.997,
+              "collision_risk_rate": 0.0,
+              "pedestrian_failure_rate": 0.0
+            },
+            "close_lead": {
+              "samples": 774,
+              "overall_score": 93.192,
+              "collision_risk_rate": 0.0698,
+              "pedestrian_failure_rate": 0.0
+            },
+            "turn": {
+              "samples": 432,
+              "overall_score": 84.469,
+              "collision_risk_rate": 0.125,
+              "pedestrian_failure_rate": 0.0
+            },
+            "adverse_weather": {
+              "samples": 522,
+              "overall_score": 100.0,
+              "collision_risk_rate": 0.0,
+              "pedestrian_failure_rate": 0.0
+            },
+            "all": {
+              "samples": 1044,
+              "overall_score": 91.849,
+              "collision_risk_rate": 0.0517,
+              "pedestrian_failure_rate": 0.0
+            }
+          },
+          "planning_l2_m": {
+            "1s": 1.797,
+            "2s": 5.793,
+            "3s": 11.197,
+            "avg_1_2_3s": 6.262,
+            "ade_3s": 5.218
+          },
+          "selection_objective": 6.3065
+        }
+      }
+    ]
+  },
+  "selected": {
+    "sft_ridge": 10.0,
+    "reflection_sft_ridge": 10.0,
+    "dpo_beta": 0.03
+  },
+  "dpo_search": [
+    {
+      "beta": 0.03,
+      "metrics": {
+        "policy": "reflection_dpo",
+        "samples": 1044,
+        "unique_keyframes": 58,
+        "collision_risk_rate": 0.0517,
+        "traffic_violation_rate": 0.0,
+        "pedestrian_yield_failure_rate": 0.0,
+        "uncomfortable_rate": 0.3966,
+        "safety_score": 99.676,
+        "rule_score": 100.0,
+        "comfort_score": 64.22,
+        "overall_score": 92.698,
+        "target_speed_mae": 3.577,
+        "mean_abs_jerk": 1.084,
+        "overall_95ci": [
+          90.301,
+          95.096
+        ],
+        "scenario_breakdown": {
+          "pedestrian": {
+            "samples": 270,
+            "overall_score": 82.997,
+            "collision_risk_rate": 0.0,
+            "pedestrian_failure_rate": 0.0
+          },
+          "close_lead": {
+            "samples": 774,
+            "overall_score": 93.407,
+            "collision_risk_rate": 0.0698,
+            "pedestrian_failure_rate": 0.0
+          },
+          "turn": {
+            "samples": 432,
+            "overall_score": 84.855,
+            "collision_risk_rate": 0.125,
+            "pedestrian_failure_rate": 0.0
+          },
+          "adverse_weather": {
+            "samples": 522,
+            "overall_score": 100.0,
+            "collision_risk_rate": 0.0,
+            "pedestrian_failure_rate": 0.0
+          },
+          "all": {
+            "samples": 1044,
+            "overall_score": 92.698,
+            "collision_risk_rate": 0.0517,
+            "pedestrian_failure_rate": 0.0
+          }
+        },
+        "planning_l2_m": {
+          "1s": 1.183,
+          "2s": 3.874,
+          "3s": 7.521,
+          "avg_1_2_3s": 4.193,
+          "ade_3s": 3.492
+        },
+        "selection_objective": 3.7961
+      }
+    },
+    {
+      "beta": 0.08,
+      "metrics": {
+        "policy": "reflection_dpo",
+        "samples": 1044,
+        "unique_keyframes": 58,
+        "collision_risk_rate": 0.0172,
+        "traffic_violation_rate": 0.0,
+        "pedestrian_yield_failure_rate": 0.0,
+        "uncomfortable_rate": 0.3621,
+        "safety_score": 99.948,
+        "rule_score": 100.0,
+        "comfort_score": 67.668,
+        "overall_score": 93.51,
+        "target_speed_mae": 3.801,
+        "mean_abs_jerk": 0.964,
+        "overall_95ci": [
+          91.227,
+          95.794
+        ],
+        "scenario_breakdown": {
+          "pedestrian": {
+            "samples": 270,
+            "overall_score": 82.997,
+            "collision_risk_rate": 0.0,
+            "pedestrian_failure_rate": 0.0
+          },
+          "close_lead": {
+            "samples": 774,
+            "overall_score": 93.572,
+            "collision_risk_rate": 0.0233,
+            "pedestrian_failure_rate": 0.0
+          },
+          "turn": {
+            "samples": 432,
+            "overall_score": 85.15,
+            "collision_risk_rate": 0.0417,
+            "pedestrian_failure_rate": 0.0
+          },
+          "adverse_weather": {
+            "samples": 522,
+            "overall_score": 100.0,
+            "collision_risk_rate": 0.0,
+            "pedestrian_failure_rate": 0.0
+          },
+          "all": {
+            "samples": 1044,
+            "overall_score": 93.51,
+            "collision_risk_rate": 0.0172,
+            "pedestrian_failure_rate": 0.0
+          }
+        },
+        "planning_l2_m": {
+          "1s": 1.234,
+          "2s": 4.025,
+          "3s": 7.806,
+          "avg_1_2_3s": 4.355,
+          "ade_3s": 3.627
+        },
+        "selection_objective": 3.9957
+      }
+    },
+    {
+      "beta": 0.15,
+      "metrics": {
+        "policy": "reflection_dpo",
+        "samples": 1044,
+        "unique_keyframes": 58,
+        "collision_risk_rate": 0.0172,
+        "traffic_violation_rate": 0.0,
+        "pedestrian_yield_failure_rate": 0.0,
+        "uncomfortable_rate": 0.3621,
+        "safety_score": 99.956,
+        "rule_score": 100.0,
+        "comfort_score": 67.668,
+        "overall_score": 93.514,
+        "target_speed_mae": 3.944,
+        "mean_abs_jerk": 0.969,
+        "overall_95ci": [
+          91.232,
+          95.796
+        ],
+        "scenario_breakdown": {
+          "pedestrian": {
+            "samples": 270,
+            "overall_score": 82.997,
+            "collision_risk_rate": 0.0,
+            "pedestrian_failure_rate": 0.0
+          },
+          "close_lead": {
+            "samples": 774,
+            "overall_score": 93.577,
+            "collision_risk_rate": 0.0233,
+            "pedestrian_failure_rate": 0.0
+          },
+          "turn": {
+            "samples": 432,
+            "overall_score": 85.158,
+            "collision_risk_rate": 0.0417,
+            "pedestrian_failure_rate": 0.0
+          },
+          "adverse_weather": {
+            "samples": 522,
+            "overall_score": 100.0,
+            "collision_risk_rate": 0.0,
+            "pedestrian_failure_rate": 0.0
+          },
+          "all": {
+            "samples": 1044,
+            "overall_score": 93.514,
+            "collision_risk_rate": 0.0172,
+            "pedestrian_failure_rate": 0.0
+          }
+        },
+        "planning_l2_m": {
+          "1s": 1.276,
+          "2s": 4.146,
+          "3s": 8.029,
+          "avg_1_2_3s": 4.484,
+          "ade_3s": 3.735
+        },
+        "selection_objective": 4.1386
+      }
+    }
+  ],
+  "evolution_rounds": [
+    {
+      "round": 1,
+      "policy": "evolution_round_0",
+      "samples": 1881,
+      "revised_samples": 685,
+      "mean_overall": 90.845,
+      "failure_events": 685,
+      "failure_breakdown": {
+        "pedestrian_yield_failure": 656,
+        "unsafe_following": 29
+      },
+      "memory_size": 685
+    },
+    {
+      "round": 2,
+      "policy": "evolution_round_1",
+      "samples": 1881,
+      "revised_samples": 623,
+      "mean_overall": 91.668,
+      "failure_events": 623,
+      "failure_breakdown": {
+        "pedestrian_yield_failure": 594,
+        "unsafe_following": 29
+      },
+      "memory_size": 1308
+    },
+    {
+      "round": 3,
+      "policy": "evolution_round_2",
+      "samples": 1881,
+      "revised_samples": 605,
+      "mean_overall": 91.909,
+      "failure_events": 605,
+      "failure_breakdown": {
+        "pedestrian_yield_failure": 576,
+        "unsafe_following": 29
+      },
+      "memory_size": 1913
+    }
+  ],
+  "elapsed_seconds": 1.865
+}

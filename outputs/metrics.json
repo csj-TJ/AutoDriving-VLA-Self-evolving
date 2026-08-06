@@ -1,14 +1,48 @@
 {
+  "benchmark": {
+    "name": "nuScenes-mini scene-disjoint open-loop planning",
+    "protocol": "12 waypoints at 0.5 s; report L2 at 1/2/3 s, risk rates, comfort and clustered 95% CI",
+    "reference_protocols": [
+      "ST-P3 open-loop",
+      "UniAD open-loop"
+    ],
+    "literature_reference": {
+      "source": "OpenDriveVLA arXiv:2503.23463v2 Table I",
+      "OpenDriveVLA-0.5B_ST-P3": {
+        "l2_1s": 0.15,
+        "l2_2s": 0.32,
+        "l2_3s": 0.57,
+        "avg_l2": 0.35,
+        "avg_collision_percent": 0.09
+      },
+      "OpenDriveVLA-0.5B_UniAD": {
+        "l2_1s": 0.21,
+        "l2_2s": 0.6,
+        "l2_3s": 1.22,
+        "avg_l2": 0.68,
+        "avg_collision_percent": 0.26
+      },
+      "UniAD_UniAD_protocol": {
+        "l2_1s": 0.48,
+        "l2_2s": 0.96,
+        "l2_3s": 1.65,
+        "avg_l2": 1.03,
+        "avg_collision_percent": 0.31
+      }
+    }
+  },
   "dataset": {
     "name": "nuScenes",
     "total": 5112,
-    "test": 1008,
+    "test_rollouts": 1008,
+    "test_unique_keyframes": 56,
     "accepted": 2927
   },
   "policies": [
     {
       "policy": "baseline",
       "samples": 1008,
+      "unique_keyframes": 56,
       "collision_risk_rate": 0.2183,
       "traffic_violation_rate": 0.0397,
       "pedestrian_yield_failure_rate": 0.3571,
@@ -17,63 +51,251 @@
       "rule_score": 99.277,
       "comfort_score": 100.0,
       "overall_score": 87.874,
-      "target_speed_mae": 9.102
+      "target_speed_mae": 9.102,
+      "mean_abs_jerk": 0.25,
+      "overall_95ci": [
+        83.955,
+        91.792
+      ],
+      "scenario_breakdown": {
+        "pedestrian": {
+          "samples": 774,
+          "overall_score": 84.516,
+          "collision_risk_rate": 0.2558,
+          "pedestrian_failure_rate": 0.4651
+        },
+        "close_lead": {
+          "samples": 756,
+          "overall_score": 84.421,
+          "collision_risk_rate": 0.291,
+          "pedestrian_failure_rate": 0.4524
+        },
+        "turn": {
+          "samples": 234,
+          "overall_score": 71.785,
+          "collision_risk_rate": 0.6111,
+          "pedestrian_failure_rate": 0.7436
+        },
+        "adverse_weather": {
+          "samples": 1008,
+          "overall_score": 87.874,
+          "collision_risk_rate": 0.2183,
+          "pedestrian_failure_rate": 0.3571
+        },
+        "all": {
+          "samples": 1008,
+          "overall_score": 87.874,
+          "collision_risk_rate": 0.2183,
+          "pedestrian_failure_rate": 0.3571
+        }
+      },
+      "planning_l2_m": {
+        "1s": 1.451,
+        "2s": 4.702,
+        "3s": 9.583,
+        "avg_1_2_3s": 5.245,
+        "ade_3s": 4.34
+      }
     },
     {
       "policy": "sft",
       "samples": 1008,
+      "unique_keyframes": 56,
       "collision_risk_rate": 0.0,
       "traffic_violation_rate": 0.0,
-      "pedestrian_yield_failure_rate": 0.0893,
-      "uncomfortable_rate": 0.0714,
-      "safety_score": 95.089,
+      "pedestrian_yield_failure_rate": 0.125,
+      "uncomfortable_rate": 0.0,
+      "safety_score": 93.125,
       "rule_score": 100.0,
-      "comfort_score": 93.174,
-      "overall_score": 96.425,
-      "target_speed_mae": 2.834
+      "comfort_score": 100.0,
+      "overall_score": 96.906,
+      "target_speed_mae": 3.639,
+      "mean_abs_jerk": 0.231,
+      "overall_95ci": [
+        94.743,
+        99.07
+      ],
+      "scenario_breakdown": {
+        "pedestrian": {
+          "samples": 774,
+          "overall_score": 95.971,
+          "collision_risk_rate": 0.0,
+          "pedestrian_failure_rate": 0.1628
+        },
+        "close_lead": {
+          "samples": 756,
+          "overall_score": 96.464,
+          "collision_risk_rate": 0.0,
+          "pedestrian_failure_rate": 0.1429
+        },
+        "turn": {
+          "samples": 234,
+          "overall_score": 88.577,
+          "collision_risk_rate": 0.0,
+          "pedestrian_failure_rate": 0.4615
+        },
+        "adverse_weather": {
+          "samples": 1008,
+          "overall_score": 96.906,
+          "collision_risk_rate": 0.0,
+          "pedestrian_failure_rate": 0.125
+        },
+        "all": {
+          "samples": 1008,
+          "overall_score": 96.906,
+          "collision_risk_rate": 0.0,
+          "pedestrian_failure_rate": 0.125
+        }
+      },
+      "planning_l2_m": {
+        "1s": 1.124,
+        "2s": 3.356,
+        "3s": 6.396,
+        "avg_1_2_3s": 3.625,
+        "ade_3s": 3.029
+      }
     },
     {
       "policy": "reflection_sft",
       "samples": 1008,
+      "unique_keyframes": 56,
       "collision_risk_rate": 0.0,
       "traffic_violation_rate": 0.0,
       "pedestrian_yield_failure_rate": 0.0,
-      "uncomfortable_rate": 0.0,
+      "uncomfortable_rate": 0.4107,
       "safety_score": 100.0,
       "rule_score": 100.0,
-      "comfort_score": 100.0,
-      "overall_score": 100.0,
-      "target_speed_mae": 5.541
+      "comfort_score": 72.29,
+      "overall_score": 94.458,
+      "target_speed_mae": 4.115,
+      "mean_abs_jerk": 0.732,
+      "overall_95ci": [
+        92.493,
+        96.423
+      ],
+      "scenario_breakdown": {
+        "pedestrian": {
+          "samples": 774,
+          "overall_score": 92.782,
+          "collision_risk_rate": 0.0,
+          "pedestrian_failure_rate": 0.0
+        },
+        "close_lead": {
+          "samples": 756,
+          "overall_score": 92.746,
+          "collision_risk_rate": 0.0,
+          "pedestrian_failure_rate": 0.0
+        },
+        "turn": {
+          "samples": 234,
+          "overall_score": 89.172,
+          "collision_risk_rate": 0.0,
+          "pedestrian_failure_rate": 0.0
+        },
+        "adverse_weather": {
+          "samples": 1008,
+          "overall_score": 94.458,
+          "collision_risk_rate": 0.0,
+          "pedestrian_failure_rate": 0.0
+        },
+        "all": {
+          "samples": 1008,
+          "overall_score": 94.458,
+          "collision_risk_rate": 0.0,
+          "pedestrian_failure_rate": 0.0
+        }
+      },
+      "planning_l2_m": {
+        "1s": 1.289,
+        "2s": 4.054,
+        "3s": 7.834,
+        "avg_1_2_3s": 4.393,
+        "ade_3s": 3.658
+      }
     },
     {
       "policy": "reflection_dpo",
       "samples": 1008,
+      "unique_keyframes": 56,
       "collision_risk_rate": 0.0,
       "traffic_violation_rate": 0.0,
-      "pedestrian_yield_failure_rate": 0.0179,
-      "uncomfortable_rate": 0.0,
-      "safety_score": 99.018,
+      "pedestrian_yield_failure_rate": 0.0,
+      "uncomfortable_rate": 0.4286,
+      "safety_score": 100.0,
       "rule_score": 100.0,
-      "comfort_score": 100.0,
-      "overall_score": 99.558,
-      "target_speed_mae": 5.616
+      "comfort_score": 69.611,
+      "overall_score": 93.922,
+      "target_speed_mae": 6.076,
+      "mean_abs_jerk": 0.861,
+      "overall_95ci": [
+        91.856,
+        95.988
+      ],
+      "scenario_breakdown": {
+        "pedestrian": {
+          "samples": 774,
+          "overall_score": 92.085,
+          "collision_risk_rate": 0.0,
+          "pedestrian_failure_rate": 0.0
+        },
+        "close_lead": {
+          "samples": 756,
+          "overall_score": 92.032,
+          "collision_risk_rate": 0.0,
+          "pedestrian_failure_rate": 0.0
+        },
+        "turn": {
+          "samples": 234,
+          "overall_score": 89.172,
+          "collision_risk_rate": 0.0,
+          "pedestrian_failure_rate": 0.0
+        },
+        "adverse_weather": {
+          "samples": 1008,
+          "overall_score": 93.922,
+          "collision_risk_rate": 0.0,
+          "pedestrian_failure_rate": 0.0
+        },
+        "all": {
+          "samples": 1008,
+          "overall_score": 93.922,
+          "collision_risk_rate": 0.0,
+          "pedestrian_failure_rate": 0.0
+        }
+      },
+      "planning_l2_m": {
+        "1s": 1.468,
+        "2s": 4.821,
+        "3s": 9.694,
+        "avg_1_2_3s": 5.328,
+        "ade_3s": 4.418
+      }
     }
   ],
   "critic_summary": {
     "rule": {
       "count": 4089,
       "mean_overall": 87.899,
-      "std": 14.908
+      "std": 14.908,
+      "rule_mae": 0.0,
+      "rule_pearson": 1.0,
+      "failure_exact_match": 1.0
     },
     "llm_offline_proxy": {
       "count": 512,
       "mean_overall": 87.652,
-      "std": 14.662
+      "std": 14.662,
+      "rule_mae": 0.561,
+      "rule_pearson": 0.9993,
+      "failure_exact_match": 1.0
     },
     "reward_model": {
       "count": 511,
       "mean_overall": 86.167,
-      "std": 11.088
+      "std": 11.088,
+      "rule_mae": 6.166,
+      "rule_pearson": 0.8394,
+      "failure_exact_match": 1.0
     }
   },
   "scope_note": "nuScenes-derived lightweight open-loop experiment; not a CARLA or on-road closed-loop claim."

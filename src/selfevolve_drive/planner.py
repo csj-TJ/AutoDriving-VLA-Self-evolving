@@ -34,11 +34,14 @@ class Policy:
     weights: list[float] | None = None
     seed: int = 42
 
+    def uses_reflection_guard(self) -> bool:
+        return self.name in {"reflection_sft", "reflection_dpo"}
+
     def target_speed(self, s: Scenario) -> float:
         if self.weights is not None:
             raw = float(scenario_features(s) @ np.asarray(self.weights))
             target = min(s.speed_limit * 1.25, max(0.0, raw))
-            if self.name != "baseline":
+            if self.uses_reflection_guard():
                 risk = assess_pedestrian_conflict(s, target_speed=target)
                 if risk.relevant and risk.safe_target_speed is not None:
                     target = min(target, risk.safe_target_speed)
@@ -59,7 +62,7 @@ class Policy:
         target = self.target_speed(s)
         pedestrian_risk = (
             assess_pedestrian_conflict(s, target_speed=max(target, s.ego_speed))
-            if self.name != "baseline" else None
+            if self.uses_reflection_guard() else None
         )
         points: list[list[float]] = []
         x, y, v = 0.0, 0.0, s.ego_speed
@@ -68,7 +71,7 @@ class Policy:
             accel = max(-3.8, min(2.3, (target - v) * 0.45))
             v = max(0.0, v + accel * dt)
             proposed_x = x + v * dt
-            if self.name != "baseline":
+            if self.uses_reflection_guard():
                 # A final kinematic guard keeps the revised policy behind a moving
                 # lead vehicle even when the learned target-speed model is imperfect.
                 lead_x = s.lead_distance + s.lead_speed * (k + 1) * dt

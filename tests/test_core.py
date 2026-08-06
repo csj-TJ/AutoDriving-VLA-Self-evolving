@@ -17,7 +17,10 @@ sys.path.insert(0, str(ROOT / "src"))
 from selfevolve_drive.critics import RuleBasedCritic
 from selfevolve_drive.base_models import audit_opendrivevla, create_base_model, parse_opendrivevla_trajectory
 from selfevolve_drive.pipeline import build_records, load_config
+from selfevolve_drive.evaluation import evaluate_policy
 from selfevolve_drive.planner import Policy
+from selfevolve_drive.schema import Scenario, Trajectory
+from selfevolve_drive.training import record_target_speed
 from selfevolve_drive.reflection import reflect
 from selfevolve_drive.simulator import generate_scenarios
 from selfevolve_drive.self_evolution import run_self_evolution
@@ -43,6 +46,17 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(len(records), 40)
         self.assertTrue({"scenario", "trajectory", "critic", "reflection", "quality"} <= records[0].keys())
         self.assertEqual(reward.coef.shape[1], 3)
+
+    def test_open_loop_benchmark_reports_planning_and_uncertainty_metrics(self):
+        records = [json.loads(line) for line in (ROOT / "data" / "reflection_dataset.jsonl").read_text(encoding="utf-8").splitlines()[:18]]
+        scenes = [Scenario(**record["scenario"]) for record in records]
+        targets = [record_target_speed(record) for record in records]
+        experts = [Trajectory(**record["expert_trajectory"]) for record in records]
+        tokens = [record["source"]["sample_token"] for record in records]
+        metrics = evaluate_policy(Policy("baseline"), scenes, {"safety": .45, "rule": .35, "comfort": .20}, targets, experts, tokens)
+        self.assertEqual(metrics["unique_keyframes"], 1)
+        self.assertTrue({"1s", "2s", "3s", "avg_1_2_3s", "ade_3s"} <= metrics["planning_l2_m"].keys())
+        self.assertEqual(len(metrics["overall_95ci"]), 2)
 
     def test_multi_round_self_evolution_produces_memory(self):
         cfg = load_config(ROOT / "configs" / "default.json"); cfg["num_samples"] = 120
@@ -280,7 +294,14 @@ class CoreTests(unittest.TestCase):
         }
         result = compare(payload)
         revised = result["results"]["reflection_sft"]
-        self.assertGreater(revised["trajectory"]["target_speed"], 10.0)
+        no_pedestrian = compare({
+            **payload, "scene_id": "lateral-clearance-reference",
+            "pedestrian_distance": 100.0, "pedestrian_x": None, "pedestrian_y": None,
+        })["results"]["reflection_sft"]
+        self.assertAlmostEqual(
+            revised["trajectory"]["target_speed"],
+            no_pedestrian["trajectory"]["target_speed"], places=3,
+        )
         self.assertNotIn("pedestrian_yield_failure", revised["critic"]["failures"])
         self.assertTrue(any("无时空冲突" in item for item in revised["critic"]["evidence"]))
 
