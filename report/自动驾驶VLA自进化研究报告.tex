@@ -39,10 +39,15 @@
 \begin{document}
 \begin{titlepage}
   \centering
-  \vspace*{2.0cm}
+  \vspace*{0.65cm}
+  \includegraphics[width=3.5cm]{../docs/assets/tongji_university_emblem_official.png}\par
+  \vspace{0.45cm}
+  {\zihao{2}\bfseries 同济大学\par}
+  {\large TONGJI UNIVERSITY\par}
+  \vspace{1.25cm}
   {\zihao{1}\bfseries 基于自我反思与 Critic 反馈的\\[0.35em]
   自动驾驶视觉语言动作模型自进化研究\par}
-  \vspace{1.8cm}
+  \vspace{1.25cm}
   {\zihao{3}大区治理方向课程实践项目报告\par}
   \vspace{0.9cm}
   {\zihao{4}基座模型：OpenDriveVLA-0.5B\par}
@@ -151,17 +156,68 @@ DPO & 基于偏好对的直接策略优化 & 由失败轨迹和修正轨迹形�
 \begin{table}[!htbp]
 \centering\small
 \caption{数据规模与划分}
-\begin{tabular}{lrrrr}
+\begin{tabular}{lrrrrr}
 \toprule
-划分 & 场景数 & 有效关键帧 & Rollout 数 & 质量过滤后 \\
+划分 & 场景数 & 有效关键帧 & Rollout 数 & 质量过滤后 & 通过率 \\
 \midrule
-训练集 & 6 & 170 & 3,060 & 1,881 \\
-验证集 & 2 & 58 & 1,044 & 由验证协议全量使用 \\
-测试集 & 2 & 56 & 1,008 & 由测试协议全量使用 \\
-合计 & 10 & 284 & 5,112 & 2,927 \\
+训练集 & 6 & 170 & 3,060 & 1,881 & 61.5\% \\
+验证集 & 2 & 58 & 1,044 & 553 & 53.0\% \\
+测试集 & 2 & 56 & 1,008 & 493 & 48.9\% \\
+合计 & 10 & 284 & 5,112 & 2,927 & 57.3\% \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\begin{table}[!htbp]
+\centering\small
+\caption{按 scene token 固定的数据划分清单}
+\begin{tabular}{lP{0.74\textwidth}}
+\toprule
+划分 & nuScenes scene name \\
+\midrule
+训练集 & scene-0061、scene-0103、scene-0553、scene-0655、scene-0757、scene-0796 \\
+验证集 & scene-0916、scene-1077 \\
+测试集 & scene-1094、scene-1100 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+划分在生成候选轨迹之前完成：一个关键帧及其 18 个候选始终属于同一 split，同一 scene 的全部关键帧也不会跨集合出现。训练集只用于参数估计，验证集用于选择 Ridge 系数、DPO $\beta$ 和停止轮次，测试集在超参数冻结后只运行一次主评估。质量过滤仅决定哪些 Reflection 可作为训练监督，不删除测试 rollout；因此主结果始终在完整的 1,008 条测试候选上计算，避免因只保留高质量样本而高估策略表现。
+
+\begin{figure}[!htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[ybar stacked,bar width=24pt,width=0.82\textwidth,height=6.2cm,
+symbolic x coords={训练,验证,测试},xtick=data,ylabel={Rollout 数},ymin=0,ymax=3300,
+legend style={at={(0.5,-0.16)},anchor=north,legend columns=2},nodes near coords,
+every node near coord/.append style={font=\scriptsize},grid=major]
+\addplot[fill=teal!75] coordinates {(训练,1881)(验证,553)(测试,493)};
+\addplot[fill=black!18] coordinates {(训练,1179)(验证,491)(测试,515)};
+\legend{通过 Reflection 质量门槛,未通过门槛}
+\end{axis}
+\end{tikzpicture}
+\caption{各划分的 Reflection 质量过滤构成；测试评价仍使用全量 rollout}
+\end{figure}
+
+\subsection{场景构成与分布差异}
+训练、验证和测试集合在驾驶要素上并非同分布。按 rollout 统计，训练集包含 65.3\% 行人场景、28.8\% 近距前车场景和 11.2\% 转弯场景；验证集对应 25.9\%、74.1\% 和 41.4\%；测试集对应 76.8\%、75.0\% 和 23.2\%。这些标签允许重叠，例如转弯关键帧也可能同时存在行人和近距前车。按 scene 隔离天然保留了真实片段的要素共现，但也带来显著分布偏移，因而测试结果比随机 rollout 划分更能检验跨场景迁移。
+
+\begin{figure}[!htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[ybar,bar width=10pt,width=0.90\textwidth,height=6.4cm,ymin=0,ymax=85,
+symbolic x coords={训练,验证,测试},xtick=data,ylabel={Rollout 占比（\%）},
+legend style={at={(0.5,-0.17)},anchor=north,legend columns=3},grid=major]
+\addplot[fill=deepblue!78] coordinates {(训练,65.3)(验证,25.9)(测试,76.8)};
+\addplot[fill=teal!72] coordinates {(训练,28.8)(验证,74.1)(测试,75.0)};
+\addplot[fill=softorange!78] coordinates {(训练,11.2)(验证,41.4)(测试,23.2)};
+\legend{行人,近距前车,转弯}
+\end{axis}
+\end{tikzpicture}
+\caption{场景要素在训练、验证和测试集中的覆盖差异（标签可重叠）}
+\end{figure}
+
+训练集通过质量门槛的 1,881 条记录中，原始 Critic 共标记 1,295 次行人礼让失败、324 次不安全跟车和 287 次超速；验证集相应为 270、270 和 140 次，测试集为 358、194 和 37 次。测试集的超速先验较弱而动态交互更密集，因此主结果中 Safety 与行人礼让比 Rule 分更具有区分度。验证集转弯占比最高，这也使超参数选择倾向更强正则和较弱 DPO 更新，有助于抑制只适合单一直道场景的激进策略。
 
 \subsection{数据边界与中性先验}
 nuScenes mini 不提供与本实验完全对应的逐帧交通灯相位、停止线距离和道路限速表，当前轻量实验也未加载 map expansion。系统对这三项采用可审计的中性先验：限速 13.9 m/s、绿灯、停止线 45 m。该处理只为保持 Rule Critic 接口完整，不被解释为真实交通灯识别标签。天气由 scene 描述和日志信息映射；相机图像、车辆/行人标注和 ego 运动均来自官方数据。
@@ -396,6 +452,60 @@ legend style={at={(0.5,-0.18)},anchor=north,legend columns=3},ylabel={得分},gr
 \caption{四种策略的安全、舒适与综合得分}
 \end{figure}
 
+\subsection{相对 Baseline 的增益分解}
+为区分“总体分上升”究竟来自专家拟合、安全约束还是保守制动，表~\ref{tab:baseline-delta} 将三种训练策略统一换算为相对未训练 Baseline 的变化。百分点差使用绝对风险率之差，L2 与速度 MAE 使用相对下降率；正值表示改善，负值表示退化。
+
+\begin{table}[!htbp]
+\centering\scriptsize
+\caption{训练策略相对 Baseline 的性能变化}\label{tab:baseline-delta}
+\begin{tabular}{lrrrrrr}
+\toprule
+策略 & Overall & Overall增幅 & 平均L2降幅 & 速度MAE降幅 & 碰撞风险 & 行人失败 \\
+\midrule
+SFT & +9.032 & +10.28\% & +30.89\% & +60.02\% & -21.83 pp & -23.21 pp \\
+Reflection SFT & +6.584 & +7.49\% & +16.24\% & +54.79\% & -21.83 pp & -35.71 pp \\
+Reflection DPO & +6.048 & +6.88\% & -1.58\% & +33.25\% & -21.83 pp & -35.71 pp \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[!htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[ybar,bar width=10pt,width=0.92\textwidth,height=6.6cm,
+symbolic x coords={SFT,Ref-SFT,Ref-DPO},xtick=data,ymin=-8,ymax=65,
+ylabel={相对 Baseline 改善（\%）},grid=major,
+legend style={at={(0.5,-0.17)},anchor=north,legend columns=3}]
+\addplot[fill=deepblue!78] coordinates {(SFT,10.28)(Ref-SFT,7.49)(Ref-DPO,6.88)};
+\addplot[fill=teal!72] coordinates {(SFT,30.89)(Ref-SFT,16.24)(Ref-DPO,-1.58)};
+\addplot[fill=softorange!78] coordinates {(SFT,60.02)(Ref-SFT,54.79)(Ref-DPO,33.25)};
+\addplot[black,dashed,forget plot] coordinates {(SFT,0)(Ref-SFT,0)(Ref-DPO,0)};
+\legend{Overall增幅,平均L2降幅,速度MAE降幅}
+\end{axis}
+\end{tikzpicture}
+\caption{相对 Baseline 的综合、轨迹与速度拟合增益；负值表示退化}
+\end{figure}
+
+SFT 在三个维度均形成最大或接近最大的正增益，说明专家监督既修正了 Baseline 的速度偏置，也改善了长期轨迹。Reflection SFT 的硬风险降幅最大，但平均 L2 改善由 SFT 的 30.89\% 收窄到 16.24\%，显示安全修正开始牺牲专家进度。Reflection DPO 虽继续消除已建模安全失败，平均 L2 却比 Baseline 高 1.58\%，说明当前偏好对中的“安全 chosen”缺少与专家效率相当的正样本；其结果更接近一个高安全、低效率的专项策略，而不是可无条件替代 SFT 的最终模型。
+
+\subsection{安全--舒适权衡与策略前沿}
+将碰撞、规则和行人失败率相加作为便于可视化的风险负担（只用于横向比较，不作为新评价指标），可观察到 Baseline 位于高风险、高舒适区域，SFT 将风险负担由 61.51 降至 12.50 个百分点且保持 Comfort=100；Reflection 两种策略进一步把已建模风险压到 0，但 Comfort 分别降至 72.290 和 69.611。因此 SFT 与 Reflection SFT 构成两种不同取向的候选：前者是综合性能前沿，后者是硬安全约束前沿；Reflection DPO 被 Reflection SFT 同时在 Overall、Comfort、L2 和速度 MAE 上支配。
+
+\begin{figure}[!htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=0.84\textwidth,height=6.8cm,xmin=-3,xmax=66,ymin=65,ymax=103,
+xlabel={风险负担：碰撞+违规+行人失败（百分点，越低越好）},ylabel={Comfort（越高越好）},
+grid=major]
+\addplot[only marks,mark=*,mark size=3.2pt,deepblue] coordinates {(61.51,100)} node[above left] {Baseline};
+\addplot[only marks,mark=square*,mark size=3.2pt,teal] coordinates {(12.50,100)} node[above right] {SFT};
+\addplot[only marks,mark=triangle*,mark size=3.6pt,softorange] coordinates {(0,72.290)} node[right] {Reflection SFT};
+\addplot[only marks,mark=diamond*,mark size=3.4pt,purple] coordinates {(0,69.611)} node[right] {Reflection DPO};
+\end{axis}
+\end{tikzpicture}
+\caption{四种策略的安全风险与舒适性权衡}
+\end{figure}
+
 \subsection{轨迹误差与文献参照}
 \begin{table}[!htbp]
 \centering\small
@@ -459,6 +569,23 @@ SFT 在三个时间点均优于其余本地策略，但仍明显落后于完整 
 \end{table}
 
 转弯组是 Baseline 最困难的子集，综合分仅 71.785，说明弯道横向几何与前向障碍耦合会放大轻量规则规划器缺陷。SFT 在行人与近距前车组取得最高综合分，而 Reflection 系列在转弯组略高于 SFT，原因是其安全 guard 能提前抑制冲突速度。另一方面，Reflection 在简单场景同样可能采取保守动作，从而降低整体舒适分。这支持“按失败类型选择 Skill”的设计，而不是对所有场景永久启用同等强度的减速规则。
+
+\begin{figure}[!htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[ybar,bar width=10pt,width=0.88\textwidth,height=6.2cm,ymin=0,ymax=20,
+symbolic x coords={行人,近距前车,转弯},xtick=data,ylabel={相对 Baseline 的 Overall 增益},
+legend style={at={(0.5,-0.17)},anchor=north,legend columns=3},grid=major]
+\addplot[fill=deepblue!78] coordinates {(行人,11.455)(近距前车,12.043)(转弯,16.792)};
+\addplot[fill=teal!72] coordinates {(行人,8.266)(近距前车,8.325)(转弯,17.387)};
+\addplot[fill=softorange!78] coordinates {(行人,7.569)(近距前车,7.611)(转弯,17.387)};
+\legend{SFT,Reflection SFT,Reflection DPO}
+\end{axis}
+\end{tikzpicture}
+\caption{不同复杂场景中各训练策略相对 Baseline 的综合分增益}
+\end{figure}
+
+分组增益呈现清晰的难度效应：三种训练策略在转弯场景上的提升均超过 16.7 分，高于行人和近距前车组。这并不表示转弯已经解决，而是因为 Baseline 起点更低；Reflection SFT 的转弯绝对分 89.172 仍低于其行人组 92.782。SFT 在行人和近距前车组领先 Reflection 约 3.2--3.7 分，主要差异来自舒适性；在转弯组，Reflection 的安全 guard 带来的收益略大于其舒适代价。因而部署层更适合使用 SFT 作为常态策略，仅在 Critic 识别高置信度动态冲突或弯道耦合风险时触发 Reflection Skill。
 
 \subsection{置信区间与统计解释}
 Baseline、SFT、Reflection SFT 和 Reflection DPO 的场景簇 95\% 置信区间分别为 [83.955, 91.792]、[94.743, 99.070]、[92.493, 96.423] 和 [91.856, 95.988]。SFT 与 Baseline 区间分离，说明改进并非只来自某一个候选 rollout；Reflection SFT 与 SFT 区间有重叠，不能据此宣称综合性能显著超过 SFT。相反，Reflection 的主要优势集中在已建模安全失败归零，而代价集中在舒适和轨迹拟合。
@@ -564,9 +691,29 @@ Demo 由 HTML、CSS 和 JavaScript 三件套前端与 Python API 后端组成。
 
 \begin{figure}[!htbp]
 \centering
-\includegraphics[width=0.72\textwidth,height=0.43\textheight,keepaspectratio]{../docs/assets/demo_skill_dashboard.png}
-\caption{动态 Demo 实运行页面：nuScenes 场景、双策略轨迹、Critic 与 Skill 反思}
+\begin{subfigure}{0.96\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{../docs/assets/demo_full_01_overview.png}
+  \caption{系统入口与四阶段推理流程}
+\end{subfigure}
+\vspace{0.55em}
+\begin{subfigure}{0.96\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{../docs/assets/demo_full_02_trajectory.png}
+  \caption{场景控制、数据状态、真实图像与双轨迹动画}
+\end{subfigure}
+\caption{动态 Demo 实运行页面：从系统入口进入 nuScenes 驱动的轨迹对比}
 \end{figure}
+
+图中顶部状态条同时显示后端连接、基座文件完整性和当前运行来源；示例明确标记为 LiteVLA 实时回退，不把本地 CPU 策略误报为 OpenDriveVLA 权重前向。轨迹页左侧从完整 JSONL 索引选择场景和策略，中部按照后端返回的 waypoint 播放六秒预测窗口，右侧关联当前 sample 的 CAM\_FRONT 图像。页面在 1280px 级窗口下自动把评价区域折至下一行，避免三列布局横向裁切。
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.96\textwidth]{../docs/assets/demo_full_03_reflection.png}
+\caption{Critic 与 Reflection 实运行页面：多维评分、数值证据和纠正策略}
+\end{figure}
+
+评价页把本轮 Safety、Rule、Comfort 与 Overall 同屏展示，并给出相对初始规划的分数变化。Reflection 面板区分是否存在实质失败：无时空冲突时输出“轨迹可接受”，保留最小间距等证据并维持原规划；存在失败时才列出根因、纠正策略与反事实动作。该设计使截图既能验证数据和模型确实连通，也能展示“不是所有场景都强制减速”的条件化 Skill 逻辑。
 
 \subsection{运行与接口}
 协作者拉取仓库后，可依次运行：
@@ -617,6 +764,7 @@ OpenDriveVLA 原论文 0.5B 的 ST-P3 平均 L2 为 0.35 m、平均碰撞率为 
 [10] Motional. nuScenes devkit. \url{https://github.com/nutonomy/nuscenes-devkit}\par
 [11] Thinklab-SJTU. Bench2Drive. \url{https://github.com/Thinklab-SJTU/Bench2Drive}\par
 [12] Physical Superintelligence Lab. Agent-Driver. \url{https://github.com/physical-superintelligence-lab/Agent-Driver}\par
+[13] 同济大学. 学校标识（校徽）. \url{https://www.tongji.edu.cn/xxgk1/xxbs1.htm}\par
 
 \appendix
 \section{数据字段与溯源示例}

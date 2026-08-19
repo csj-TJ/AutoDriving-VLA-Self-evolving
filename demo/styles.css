@@ -578,7 +578,7 @@ canvas.dragging-pedestrian { cursor: grabbing; }
 .event p { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
 .error { position: fixed; right: 18px; bottom: 18px; z-index: 100; display: none; max-width: 360px; padding: 12px 16px; border-radius: 10px; background: var(--black); color: #fff; font-size: 12px; }
 
-@media (max-width: 1240px) {
+@media (max-width: 1360px) {
   .workspace { grid-template-columns: 280px minmax(0, 1fr); }
   .result-column { grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .result-column > .section-heading { grid-column: 1 / -1; }
